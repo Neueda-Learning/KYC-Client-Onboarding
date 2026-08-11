@@ -7,6 +7,7 @@ System for managing client identity verification processes (Know Your Customer -
 ## 📁 Project Structure
 
 
+```text
 PROJECT-KYC/
 ├── scripts/
 │   └── db/
@@ -28,8 +29,7 @@ PROJECT-KYC/
 ├── EDB Diagram.pdf                  # ERD diagram of the database
 ├── Project-Brief-02-KYC-...pdf      # Business requirements documentation
 └── README.md                        # Project documentation
-
-
+```                   # Dokumentacja projektu
 ---
 
 ## 🛠️ Prerequisites
