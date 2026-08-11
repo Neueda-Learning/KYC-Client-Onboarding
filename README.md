@@ -61,6 +61,21 @@ mysql -u root -p kyc_db < 01_seed_data.sql
 
 ```
 
+Or run the bootstrap script to start MySQL if needed, create the database, and execute the full SQL setup automatically:
+
+```bash
+chmod +x scripts/db/bootstrap_db.sh
+./scripts/db/bootstrap_db.sh
+```
+
+Optional environment variables:
+
+```bash
+export MYSQL_USER=root
+export MYSQL_PASSWORD=your_password
+export MYSQL_BIN="/c/xampp/mysql/bin" #or other
+```
+
 ---
 
 ### 2. Administrative Automation Scripts
