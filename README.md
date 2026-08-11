@@ -6,7 +6,6 @@ System for managing client identity verification processes (Know Your Customer -
 
 ## 📁 Project Structure
 
-
 ```text
 PROJECT-KYC/
 ├── scripts/
@@ -29,7 +28,9 @@ PROJECT-KYC/
 ├── EDB Diagram.pdf                  # ERD diagram of the database
 ├── Project-Brief-02-KYC-...pdf      # Business requirements documentation
 └── README.md                        # Project documentation
-```                   # Dokumentacja projektu
+
+```
+
 ---
 
 ## 🛠️ Prerequisites
@@ -100,6 +101,7 @@ chmod +x scripts/db/*.sh
 ```
 
 
+
 ---
 
 ### 3. Java API Server Compilation and Execution
@@ -135,6 +137,9 @@ java -cp ".:lib/mysql-connector-j-8.3.0.jar" KycApiServer
 ```
 
 
+
+
+
 ---
 
 ## 🌐 API Endpoints
@@ -142,5 +147,5 @@ java -cp ".:lib/mysql-connector-j-8.3.0.jar" KycApiServer
 Once running, the API server is available at:
 
 | Method | Endpoint | Description |
-| ------ | -------- | ----------- |
-| `GET`  | `http://localhost:8080/api/clients` | Returns a list of all clients in JSON format |
+| --- | --- | --- |
+| `GET` | `http://localhost:8080/api/clients` | Returns a list of all clients in JSON format |
