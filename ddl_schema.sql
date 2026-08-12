@@ -1,3 +1,5 @@
+USE kyc_db;
+
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `risk_classification`;
 DROP TABLE IF EXISTS `document`;
