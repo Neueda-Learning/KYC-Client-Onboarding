@@ -1,6 +1,18 @@
 #!/bin/bash
-# Database backup script
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_lib.sh"
+
+BACKUP_FILE="$SCRIPT_DIR/kyc_db_backup.sql"
+
+prompt_password
+
+MYSQLDUMP="$(find_mysqldump)" || {
+  echo "mysqldump not found. Set MYSQL_BIN to your MySQL bin directory or add mysqldump to PATH."
+  exit 1
+}
 
 echo "Creating database backup for kyc_db..."
-"/c/Program Files/MySQL/MySQL Server 8.0/bin/mysqldump.exe" -u root -p kyc_db > kyc_db_backup.sql
-echo "Database backup successfully saved to kyc_db_backup.sql!"
+"$MYSQLDUMP" --user="$MYSQL_USER" --password="$MYSQL_PASSWORD" kyc_db > "$BACKUP_FILE"
+echo "Backup saved to $BACKUP_FILE"
