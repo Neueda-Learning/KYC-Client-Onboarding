@@ -11,30 +11,32 @@ System for managing client identity verification processes (Know Your Customer -
 PROJECT-KYC/
 ├── scripts/
 │   └── db/
+│       ├── _lib.sh                  # Shared MySQL client discovery and password helpers
+│       ├── bootstrap_db.sh          # Full DB setup: creates, seeds, and verifies from scratch
 │       ├── db_dump.sh               # Database backup script
-│       ├── db_reload.sh             # Script for restoring the database from a .sql file
-│       ├── expiring_docs_report.sh  # Script generating a report of expiring documents
+│       ├── db_reload.sh             # Restore database from backup
+│       ├── expiring_docs_report.sh  # Generates expiring_docs_report.csv
 │       ├── expiring_docs_report.csv # Generated expiring documents report
-│       ├── kyc_db_backup.sql        # Database backup file
-│       └── rebuild_indexes.sh       # Script for optimizing and rebuilding indexes
+│       ├── kyc_db_backup.sql        # Database backup file (produced by db_dump.sh)
+│       └── rebuild_indexes.sh       # Optimizes and rebuilds indexes
 ├── src/
 │   ├── lib/
 │   │   └── mysql-connector-j-8.3.0.jar # MySQL JDBC Driver
 │   └── KycApiServer.java            # Lightweight HTTP server (Java Relay API)
-├── 01_seed_data.sql                 # Script with test data (10 clients)
+├── 01_seed_data.sql                 # Test data (10 clients)
 ├── create_database.sql              # Database creation (kyc_db)
-├── ddl_schema.sql                   # Schema for tables, keys, and relationships
+├── ddl_schema.sql                   # Tables, keys, and relationships
 ├── select_all_clients.sql           # Auxiliary query for client verification
 ├── views_stored_procedures.sql      # SQL views and stored procedures
 ├── EDB Diagram.pdf                  # ERD diagram of the database
 ├── Project-Brief-02-KYC-...pdf      # Business requirements documentation
 └── README.md                        # Project documentation
-```                   # Dokumentacja projektu
+```
 ---
 
 ## 🛠️ Prerequisites
 
-* **MySQL Server 8.x** (running on port `3306`)
+* **MySQL 8.x** — either MySQL Server 8.0 (standalone) or XAMPP
 * **Java Development Kit (JDK 17+)**
 * **Git Bash** or any Unix-like terminal
 
@@ -44,76 +46,56 @@ PROJECT-KYC/
 
 ### 1. MySQL Database Setup
 
-Execute the SQL scripts in the following order to create and seed the database:
+All scripts auto-discover the MySQL client. On a standalone **MySQL Server 8.0** install no extra configuration is needed. On **XAMPP**, set `MYSQL_BIN` once per terminal session before running any script:
 
 ```bash
-# 1. Create the database
-mysql -u root -p < create_database.sql
-
-# 2. Create tables and relationships
-mysql -u root -p kyc_db < ddl_schema.sql
-
-# 3. Add views and stored procedures
-mysql -u root -p kyc_db < views_stored_procedures.sql
-
-# 4. Seed database with test data
-mysql -u root -p kyc_db < 01_seed_data.sql
-
+export MYSQL_BIN="/c/xampp/mysql/bin"
 ```
 
-Or run the bootstrap script to start MySQL if needed, create the database, and execute the full SQL setup automatically:
-
-```bash
-chmod +x scripts/db/bootstrap_db.sh
-./scripts/db/bootstrap_db.sh
-```
-
-Optional environment variables:
+You can also pre-set credentials to skip the password prompt:
 
 ```bash
 export MYSQL_USER=root
 export MYSQL_PASSWORD=your_password
-export MYSQL_BIN="/c/xampp/mysql/bin" #or other
 ```
 
----
-
-### 2. Administrative Automation Scripts
-
-The scripts are located in the `scripts/db/` directory. Before executing them, grant execution permissions:
+Run the bootstrap script to create the database, apply the schema, load views/procedures, and seed test data in one step:
 
 ```bash
 chmod +x scripts/db/*.sh
-
+./scripts/db/bootstrap_db.sh
 ```
 
-* **Database Backup:**
+Re-run bootstrap any time the schema changes — `ddl_schema.sql` drops and recreates all tables.
+
+---
+
+### 2. Administrative Scripts
+
+All scripts are in `scripts/db/`. They share the same MySQL discovery and password-prompt logic via `_lib.sh`, so `MYSQL_BIN` / `MYSQL_USER` / `MYSQL_PASSWORD` apply to all of them.
+
+* **Backup the database:**
 ```bash
 ./scripts/db/db_dump.sh
-
+# Saves to scripts/db/kyc_db_backup.sql
 ```
 
-
-* **Database Restore:**
+* **Restore from backup:**
 ```bash
 ./scripts/db/db_reload.sh
-
+# Drops kyc_db, recreates it, and loads scripts/db/kyc_db_backup.sql
 ```
 
-
-* **Generate Expiring Documents CSV Report:**
+* **Generate expiring documents CSV report:**
 ```bash
 ./scripts/db/expiring_docs_report.sh
-
+# Saves to scripts/db/expiring_docs_report.csv
 ```
 
-
-* **Database Index Optimization:**
+* **Optimize indexes:**
 ```bash
 ./scripts/db/rebuild_indexes.sh
-
 ```
-
 
 ---
 
