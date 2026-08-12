@@ -117,9 +117,9 @@ BEGIN
         VALUES (p_case_id, p_doc_type_id, NOW(), FALSE, p_expiry_date);
     END IF;
 
-    -- Update case status to AWAITING_DOCUMENTS
+    -- Update case status to PENDING
     UPDATE onboarding_case 
-    SET case_status = 'AWAITING_DOCUMENTS' 
+    SET case_status = 'PENDING' 
     WHERE case_id = p_case_id;
 END //
 
