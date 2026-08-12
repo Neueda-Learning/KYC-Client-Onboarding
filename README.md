@@ -140,4 +140,6 @@ Once running, the API server is available at:
 
 | Method | Endpoint | Description |
 | ------ | -------- | ----------- |
-| `GET`  | `http://localhost:8080/api/clients` | Returns a list of all clients in JSON format |
+| `GET`  | `http://localhost:8080/api/clients` | Returns a summary list of all clients (`client_id`, `full_name`, `client_type`, `nationality`, `status`, `is_active`) |
+| `GET`  | `http://localhost:8080/api/clients/{id}` | Returns the full record for a single client by ID |
+| `GET`  | `http://localhost:8080/api/onboarding/cases/{id}` | Returns case details with client info and all submitted documents for the case |
