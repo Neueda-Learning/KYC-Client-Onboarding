@@ -6,7 +6,6 @@ System for managing client identity verification processes (Know Your Customer -
 
 ## 📁 Project Structure
 
-
 ```text
 PROJECT-KYC/
 ├── scripts/
@@ -130,6 +129,9 @@ java -cp ".;lib/mysql-connector-j-8.3.0.jar" KycApiServer
 java -cp ".:lib/mysql-connector-j-8.3.0.jar" KycApiServer
 
 ```
+
+
+
 
 
 ---
