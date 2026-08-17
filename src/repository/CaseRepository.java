@@ -1,11 +1,28 @@
 package repository;
 
 import java.sql.*;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+/**
+ * Data access layer for onboarding case entities.
+ */
 public class CaseRepository {
+    private static final Logger logger = LoggerFactory.getLogger(CaseRepository.class);
 
+    /**
+     * Persists a new onboarding case.
+     *
+     * @param clientId related client id
+     * @param productType product type
+     * @param status case status
+     * @return generated case id
+     * @throws SQLException when insert fails
+     */
     public int createOnboardingCase(int clientId, String productType, String status) throws SQLException {
         String sql = "INSERT INTO onboarding_case (client_id, opened_date, product_type, case_status) VALUES (?, CURRENT_TIMESTAMP, ?, ?)";
         try (Connection conn = DatabaseConnection.getConnection();
@@ -16,45 +33,177 @@ public class CaseRepository {
             ps.executeUpdate();
             try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
                 if (generatedKeys.next()) {
-                    return generatedKeys.getInt(1);
+                    int caseId = generatedKeys.getInt(1);
+                    logger.info("Onboarding case opened: caseId={} clientId={} type={} status={}",
+                            caseId, clientId, productType, status);
+                    return caseId;
                 }
             }
         }
         throw new SQLException("Failed to open onboarding case");
     }
 
-    public int uploadDocument(int caseId) throws SQLException {
-        String sql = "INSERT INTO document (case_id, doc_type_id, submission_date, verified_flag) VALUES (?, 1, CURDATE(), false)";
+    /**
+     * Persists a new document row for a case.
+     *
+     * @param caseId target case id
+     * @param docTypeId document type id
+     * @return generated document id
+     * @throws SQLException when insert fails
+     */
+    public int uploadDocument(int caseId, int docTypeId) throws SQLException {
+        String sql = "INSERT INTO document (case_id, doc_type_id, submission_date, verified_flag) VALUES (?, ?, CURDATE(), false)";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, caseId);
+            ps.setInt(2, docTypeId);
             ps.executeUpdate();
             try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
                 if (generatedKeys.next()) {
-                    return generatedKeys.getInt(1);
+                    int docId = generatedKeys.getInt(1);
+                    logger.info("Document submitted: caseId={} docId={} docType={}",
+                            caseId, docId, getDocTypeName(conn, docTypeId));
+                    return docId;
                 }
             }
         }
         throw new SQLException("Failed to submit document");
     }
 
+    /**
+     * Marks a document as verified.
+     *
+     * @param caseId owning case id
+     * @param docId document id
+     * @return true when a matching document was updated
+     * @throws SQLException when the update fails
+     */
     public boolean verifyDocument(int caseId, int docId) throws SQLException {
         String sql = "UPDATE document SET verified_flag = true WHERE doc_id = ? AND case_id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, docId);
             ps.setInt(2, caseId);
-            return ps.executeUpdate() > 0;
+            boolean updated = ps.executeUpdate() > 0;
+            if (updated) {
+                logger.info("Document verified: caseId={} docId={} docType={}",
+                        caseId, docId, getDocTypeNameForDocument(conn, docId));
+            } else {
+                logger.warn("Document verification failed: caseId={} docId={} reason=not found or case mismatch",
+                        caseId, docId);
+            }
+            return updated;
         }
     }
 
+    /**
+     * Updates the status of an onboarding case, enforcing the case state machine.
+     *
+     * @param caseId target case id
+     * @param newStatus requested status
+     * @return true when the case existed and was updated
+     * @throws SQLException when persistence fails
+     * @throws InvalidStateTransitionException when the requested transition is not allowed
+     */
     public boolean updateCaseStatus(int caseId, String newStatus) throws SQLException {
+        String currentStatus = getCaseStatus(caseId);
+        if (currentStatus == null) {
+            return false;
+        }
+        if ("CLOSED".equalsIgnoreCase(currentStatus)) {
+            logger.error("Invalid state transition: caseId={} from={} to={} \u2014 case already closed",
+                    caseId, currentStatus, newStatus);
+            throw new InvalidStateTransitionException("Case " + caseId + " is already closed");
+        }
+        if ("CLOSED".equalsIgnoreCase(newStatus) && hasUnverifiedDocuments(caseId)) {
+            logger.error("Invalid state transition: caseId={} from={} to={} \u2014 documents not fully verified",
+                    caseId, currentStatus, newStatus);
+            throw new InvalidStateTransitionException("Case " + caseId + " has unverified documents");
+        }
+
         String sql = "UPDATE onboarding_case SET case_status = ? WHERE case_id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, newStatus);
             ps.setInt(2, caseId);
-            return ps.executeUpdate() > 0;
+            boolean updated = ps.executeUpdate() > 0;
+            if (updated) {
+                logger.info("Case status updated: caseId={} from={} to={}", caseId, currentStatus, newStatus);
+            }
+            return updated;
+        }
+    }
+
+    /**
+     * Looks up the document type name for logging purposes.
+     *
+     * @param conn open connection to reuse
+     * @param docTypeId document type id
+     * @return document type name, or UNKNOWN when not found
+     * @throws SQLException when the lookup fails
+     */
+    private String getDocTypeName(Connection conn, int docTypeId) throws SQLException {
+        String sql = "SELECT doc_type_name FROM document_type WHERE doc_type_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, docTypeId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString("doc_type_name") : "UNKNOWN";
+            }
+        }
+    }
+
+    /**
+     * Looks up the document type name for an existing document, for logging purposes.
+     *
+     * @param conn open connection to reuse
+     * @param docId document id
+     * @return document type name, or UNKNOWN when not found
+     * @throws SQLException when the lookup fails
+     */
+    private String getDocTypeNameForDocument(Connection conn, int docId) throws SQLException {
+        String sql = "SELECT dt.doc_type_name FROM document d "
+                + "JOIN document_type dt ON d.doc_type_id = dt.doc_type_id WHERE d.doc_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, docId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString("doc_type_name") : "UNKNOWN";
+            }
+        }
+    }
+
+    /**
+     * Fetches the current status of a case.
+     *
+     * @param caseId target case id
+     * @return current case status, or null when the case does not exist
+     * @throws SQLException when the lookup fails
+     */
+    private String getCaseStatus(int caseId) throws SQLException {
+        String sql = "SELECT case_status FROM onboarding_case WHERE case_id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, caseId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString("case_status") : null;
+            }
+        }
+    }
+
+    /**
+     * Checks whether a case still has unverified documents.
+     *
+     * @param caseId target case id
+     * @return true when at least one unverified document exists
+     * @throws SQLException when the lookup fails
+     */
+    private boolean hasUnverifiedDocuments(int caseId) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM document WHERE case_id = ? AND verified_flag = false";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, caseId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
         }
     }
 
@@ -113,6 +262,16 @@ public class CaseRepository {
                     if (!rs.next()) {
                         return null;
                     }
+                    String dueDate = rs.getString("due_date");
+                    String completedDate = rs.getString("completed_date");
+                    if (dueDate != null && completedDate == null) {
+                        LocalDate due = LocalDate.parse(dueDate);
+                        LocalDate today = LocalDate.now();
+                        if (today.isAfter(due)) {
+                            logger.warn("Case overdue: caseId={} dueDate={} currentDate={} daysOverdue={}",
+                                    id, due, today, ChronoUnit.DAYS.between(due, today));
+                        }
+                    }
                     json.append("{")
                             .append("\"case_id\":").append(rs.getInt("case_id")).append(",")
                             .append("\"client_id\":").append(rs.getInt("client_id")).append(",")
@@ -121,8 +280,8 @@ public class CaseRepository {
                             .append("\"product_type\":\"").append(DatabaseConnection.escape(rs.getString("product_type"))).append("\",")
                             .append("\"case_status\":\"").append(DatabaseConnection.escape(rs.getString("case_status"))).append("\",")
                             .append("\"opened_date\":\"").append(rs.getString("opened_date")).append("\",")
-                            .append("\"due_date\":").append(DatabaseConnection.jsonStringOrNull(rs.getString("due_date"))).append(",")
-                            .append("\"completed_date\":").append(DatabaseConnection.jsonStringOrNull(rs.getString("completed_date")))
+                            .append("\"due_date\":").append(DatabaseConnection.jsonStringOrNull(dueDate)).append(",")
+                            .append("\"completed_date\":").append(DatabaseConnection.jsonStringOrNull(completedDate))
                             .append(",")
                             .append("\"rejection_reason\":").append(DatabaseConnection.jsonStringOrNull(rs.getString("rejection_reason")));
                 }

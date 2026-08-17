@@ -20,8 +20,12 @@ PROJECT-KYC/
 │       └── rebuild_indexes.sh       # Optimizes and rebuilds indexes
 ├── src/
 │   ├── lib/
-│   │   └── mysql-connector-j-8.3.0.jar # MySQL JDBC Driver
-│   └── KycApiServer.java            # Lightweight HTTP server (Java Relay API)
+│   │   ├── mysql-connector-j-8.3.0.jar # MySQL JDBC Driver
+│   │   ├── slf4j-api-2.0.13.jar        # SLF4J logging API
+│   │   ├── logback-core-1.5.6.jar      # Logback core
+│   │   └── logback-classic-1.5.6.jar   # Logback SLF4J implementation
+│   ├── logback.xml                  # Logging configuration
+│   └── controller/KycApiServer.java # Lightweight HTTP server (Java Relay API)
 ├── 01_seed_data.sql                 # Test data (10 clients)
 ├── create_database.sql              # Database creation (kyc_db)
 ├── ddl_schema.sql                   # Tables, keys, and relationships
@@ -109,24 +113,24 @@ cd src
 ```
 
 
-2. Compile the Java server with the JDBC driver on the classpath:
+2. Compile the Java server with all dependency jars on the classpath:
 ```bash
-javac -cp "lib/mysql-connector-j-8.3.0.jar" KycApiServer.java
+javac -cp "lib/*" -d out $(find controller repository service -name "*.java")
 
 ```
 
 
-3. Run the API server:
+3. Run the API server (the working directory must contain `logback.xml`):
 * **In Windows environment (Git Bash):**
 ```bash
-java -cp ".;lib/mysql-connector-j-8.3.0.jar" KycApiServer
+java -cp "out;.;lib/*" controller.KycApiServer
 
 ```
 
 
 * **In Linux / macOS environment:**
 ```bash
-java -cp ".:lib/mysql-connector-j-8.3.0.jar" KycApiServer
+java -cp "out:.:lib/*" controller.KycApiServer
 
 ```
 
@@ -144,4 +148,11 @@ Once running, the API server is available at:
 | ------ | -------- | ----------- |
 | `GET`  | `http://localhost:8080/api/clients` | Returns a summary list of all clients (`client_id`, `full_name`, `client_type`, `nationality`, `status`, `is_active`) |
 | `GET`  | `http://localhost:8080/api/clients/{id}` | Returns the full record for a single client by ID |
+| `GET`  | `http://localhost:8080/api/clients/expiring-documents?days={n}` | Returns documents expiring within the given day window (defaults to 30 days) |
+| `POST` | `http://localhost:8080/api/clients` | Creates a new client. Body: `full_name`, `client_type`, `nationality`, `country_of_birth`, `date_of_birth`, `tax_residency`, `status`, `is_active` |
+| `GET`  | `http://localhost:8080/api/onboarding/cases` | Returns a list of onboarding cases, optionally filtered with `?status={status}` |
 | `GET`  | `http://localhost:8080/api/onboarding/cases/{id}` | Returns case details with client info and all submitted documents for the case |
+| `POST` | `http://localhost:8080/api/onboarding/cases` | Opens a new onboarding case. Body: `client_id`, `product_type`, `case_status` |
+| `PATCH` | `http://localhost:8080/api/onboarding/cases/{id}/status` | Updates the status of a case. Body: `case_status` |
+| `POST` | `http://localhost:8080/api/onboarding/cases/{id}/documents` | Submits a new document for a case. Body: `doc_type_id` |
+| `PATCH` | `http://localhost:8080/api/onboarding/cases/{id}/documents/{docId}/verify` | Marks a case document as verified |

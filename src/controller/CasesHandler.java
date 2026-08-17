@@ -2,18 +2,30 @@ package controller;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import service.CaseService;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import repository.InvalidStateTransitionException;
+import service.CaseService;
 
+/**
+ * Handles onboarding case and case document HTTP endpoints.
+ */
 public class CasesHandler implements HttpHandler {
+    private static final Logger logger = LoggerFactory.getLogger(CasesHandler.class);
     private final CaseService caseService = new CaseService();
 
+    /**
+     * Dispatches requests for /api/onboarding/cases routes.
+     *
+     * @param exchange current HTTP exchange
+     * @throws IOException when response writing fails
+     */
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         String method = exchange.getRequestMethod();
@@ -29,8 +41,10 @@ public class CasesHandler implements HttpHandler {
                     } catch (NumberFormatException e) {
                         KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID\"}");
                     }
-                } else {
+                } else if (parts.length == 4 && "cases".equals(parts[3])) {
                     handleCreateOnboardingCase(exchange);
+                } else {
+                    KycApiServer.sendResponse(exchange, 404, "{\"error\":\"Invalid POST endpoint path\"}");
                 }
             } else if ("PATCH".equalsIgnoreCase(method)) {
                 if (parts.length == 6 && "status".equals(parts[5])) {
@@ -40,7 +54,7 @@ public class CasesHandler implements HttpHandler {
                     } catch (NumberFormatException e) {
                         KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID\"}");
                     }
-                } else if (parts.length >= 8 && "documents".equals(parts[5]) && "verify".equals(parts[7])) {
+                } else if (parts.length == 8 && "documents".equals(parts[5]) && "verify".equals(parts[7])) {
                     try {
                         int caseId = Integer.parseInt(parts[4]);
                         int docId = Integer.parseInt(parts[6]);
@@ -52,45 +66,87 @@ public class CasesHandler implements HttpHandler {
                     KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid PATCH endpoint path\"}");
                 }
             } else if ("GET".equalsIgnoreCase(method)) {
-                if (parts.length >= 5 && !parts[4].isEmpty()) {
+                if (parts.length == 5 && !parts[4].isEmpty()) {
                     try {
                         handleGetCaseById(exchange, Integer.parseInt(parts[4]));
                     } catch (NumberFormatException e) {
                         KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID\"}");
                     }
-                } else {
+                } else if (parts.length == 4 && "cases".equals(parts[3])) {
                     String statusFilter = null;
                     if (query != null && query.startsWith("status=")) {
                         statusFilter = query.substring(7);
                     }
                     handleListCases(exchange, statusFilter);
+                } else {
+                    KycApiServer.sendResponse(exchange, 404, "{\"error\":\"Invalid GET endpoint path\"}");
                 }
             } else {
                 KycApiServer.sendResponse(exchange, 405, "{\"error\":\"Method Not Allowed\"}");
             }
-        } catch (Exception e) {
+        } catch (InvalidStateTransitionException e) {
+            logger.error("Case status update rejected: {}", e.getMessage());
+            KycApiServer.sendResponse(exchange, 409, "{\"error\":\"" + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+        } catch (SQLException | RuntimeException e) {
+            logger.error("Unhandled error processing {} {}", method, path, e);
             KycApiServer.sendResponse(exchange, 500, "{\"error\":\"" + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
         }
     }
 
+    /**
+     * Handles submission of a new document for a case.
+     *
+     * @param exchange current HTTP exchange
+     * @param caseId owning case id
+     * @throws IOException when response writing fails
+     * @throws SQLException when persistence fails
+     */
     private void handleUploadDocument(HttpExchange exchange, int caseId) throws IOException, SQLException {
-        int docId = caseService.uploadDocument(caseId);
+        String body = readBody(exchange);
+        Integer docTypeId = extractInt(body, "doc_type_id");
+        if (docTypeId == null) {
+            KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Missing required field: doc_type_id\"}");
+            return;
+        }
+
+        int docId = caseService.uploadDocument(caseId, docTypeId);
         KycApiServer.sendResponse(exchange, 201, "{\"message\":\"Document submitted successfully\",\"doc_id\":" + docId + "}");
     }
 
+    /**
+     * Handles creation of a new onboarding case.
+     *
+     * @param exchange current HTTP exchange
+     * @throws IOException when response writing fails
+     * @throws SQLException when persistence fails
+     */
     private void handleCreateOnboardingCase(HttpExchange exchange) throws IOException, SQLException {
-        int newCaseId = caseService.createOnboardingCase();
+        String body = readBody(exchange);
+        Integer clientId = extractInt(body, "client_id");
+        String productType = extractString(body, "product_type");
+        String caseStatus = extractString(body, "case_status");
+
+        if (clientId == null || isBlank(productType) || isBlank(caseStatus)) {
+            KycApiServer.sendResponse(exchange, 400,
+                    "{\"error\":\"Missing required fields: client_id, product_type, case_status\"}");
+            return;
+        }
+
+        int newCaseId = caseService.createOnboardingCase(clientId, productType, caseStatus);
         KycApiServer.sendResponse(exchange, 201, "{\"message\":\"Onboarding case opened successfully\",\"case_id\":" + newCaseId + "}");
     }
 
+    /**
+     * Handles a case status update request.
+     *
+     * @param exchange current HTTP exchange
+     * @param caseId target case id
+     * @throws IOException when response writing fails
+     * @throws SQLException when persistence fails
+     */
     private void handleUpdateCaseStatus(HttpExchange exchange, int caseId) throws IOException, SQLException {
-        String body;
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))) {
-            body = reader.lines().collect(Collectors.joining("\n"));
-        }
-
-        String newStatus = extractJsonValue(body, "case_status");
+        String body = readBody(exchange);
+        String newStatus = extractString(body, "case_status");
         if (newStatus == null || newStatus.isEmpty()) {
             KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Missing 'case_status' in request body\"}");
             return;
@@ -101,10 +157,20 @@ public class CasesHandler implements HttpHandler {
             KycApiServer.sendResponse(exchange, 200, "{\"message\":\"Case status updated successfully\",\"case_id\":" + caseId
                     + ",\"case_status\":\"" + repository.DatabaseConnection.escape(newStatus) + "\"}");
         } else {
+            logger.warn("Case status update failed: caseId={} reason=case not found", caseId);
             KycApiServer.sendResponse(exchange, 404, "{\"error\":\"Case not found\"}");
         }
     }
 
+    /**
+     * Handles verification of a document belonging to a case.
+     *
+     * @param exchange current HTTP exchange
+     * @param caseId owning case id
+     * @param docId document id
+     * @throws IOException when response writing fails
+     * @throws SQLException when persistence fails
+     */
     private void handleVerifyDocument(HttpExchange exchange, int caseId, int docId) throws IOException, SQLException {
         boolean verified = caseService.verifyDocument(caseId, docId);
         if (verified) {
@@ -114,34 +180,124 @@ public class CasesHandler implements HttpHandler {
         }
     }
 
+    /**
+     * Handles listing of onboarding cases, optionally filtered by status.
+     *
+     * @param exchange current HTTP exchange
+     * @param statusFilter status to filter by, or null for all cases
+     * @throws IOException when response writing fails
+     * @throws SQLException when the query fails
+     */
     private void handleListCases(HttpExchange exchange, String statusFilter) throws IOException, SQLException {
         String json = caseService.listCases(statusFilter);
         KycApiServer.sendResponse(exchange, 200, json);
     }
 
+    /**
+     * Handles fetching full details of a case by id.
+     *
+     * @param exchange current HTTP exchange
+     * @param id case id
+     * @throws IOException when response writing fails
+     * @throws SQLException when the query fails
+     */
     private void handleGetCaseById(HttpExchange exchange, int id) throws IOException, SQLException {
         String json = caseService.getCaseById(id);
         if (json == null) {
+            logger.warn("Case lookup failed: caseId={} reason=not found", id);
             KycApiServer.sendResponse(exchange, 404, "{\"error\":\"Case not found\"}");
         } else {
             KycApiServer.sendResponse(exchange, 200, json);
         }
     }
 
-    private String extractJsonValue(String json, String key) {
+    /**
+     * Checks whether a string is null or contains only whitespace.
+     *
+     * @param value string to validate
+     * @return true when blank
+     */
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    /**
+     * Reads the request body using UTF-8.
+     *
+     * @param exchange current HTTP exchange
+     * @return body content
+     * @throws IOException when body reading fails
+     */
+    private String readBody(HttpExchange exchange) throws IOException {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))) {
+            return reader.lines().collect(Collectors.joining("\n"));
+        }
+    }
+
+    /**
+     * Extracts a string field from a flat JSON object.
+     *
+     * @param json source JSON
+     * @param key field key
+     * @return value or null when missing
+     */
+    private String extractString(String json, String key) {
         String searchKey = "\"" + key + "\"";
         int keyIndex = json.indexOf(searchKey);
-        if (keyIndex == -1)
+        if (keyIndex == -1) {
             return null;
+        }
         int colonIndex = json.indexOf(':', keyIndex + searchKey.length());
-        if (colonIndex == -1)
+        if (colonIndex == -1) {
             return null;
+        }
         int firstQuote = json.indexOf('"', colonIndex);
-        if (firstQuote == -1)
+        if (firstQuote == -1) {
             return null;
+        }
         int secondQuote = json.indexOf('"', firstQuote + 1);
-        if (secondQuote == -1)
+        if (secondQuote == -1) {
             return null;
+        }
         return json.substring(firstQuote + 1, secondQuote);
+    }
+
+    /**
+     * Extracts an integer field from a flat JSON object.
+     *
+     * @param json source JSON
+     * @param key field key
+     * @return parsed integer or null when missing/invalid
+     */
+    private Integer extractInt(String json, String key) {
+        String searchKey = "\"" + key + "\"";
+        int keyIndex = json.indexOf(searchKey);
+        if (keyIndex == -1) {
+            return null;
+        }
+        int colonIndex = json.indexOf(':', keyIndex + searchKey.length());
+        if (colonIndex == -1) {
+            return null;
+        }
+        int valueStart = colonIndex + 1;
+        while (valueStart < json.length() && Character.isWhitespace(json.charAt(valueStart))) {
+            valueStart++;
+        }
+
+        int valueEnd = valueStart;
+        while (valueEnd < json.length() && (Character.isDigit(json.charAt(valueEnd)) || json.charAt(valueEnd) == '-')) {
+            valueEnd++;
+        }
+
+        if (valueStart == valueEnd) {
+            return null;
+        }
+
+        try {
+            return Integer.parseInt(json, valueStart, valueEnd, 10);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }
