@@ -1,0 +1,205 @@
+openapi: 3.0.3
+info:
+  title: KYC Client Onboarding API
+  description: Relay API for managing KYC clients, onboarding cases, and submitted documents.
+  version: "1.0"
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Clients
+  - name: Onboarding Cases
+  - name: System
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Readiness check
+      description: Reports whether the service can accept traffic (checks database connectivity).
+      responses:
+        "200":
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: UP }
+                  database: { type: string, example: UP }
+        "503":
+          description: Service is down (database unreachable)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: DOWN }
+                  database: { type: string, example: DOWN }
+                  error: { type: string }
+
+  /openapi.yaml:
+    get:
+      tags: [System]
+      summary: This OpenAPI specification
+      responses:
+        "200":
+          description: OpenAPI spec in YAML format
+
+  /api/clients:
+    get:
+      tags: [Clients]
+      summary: List a summary of all clients
+      responses:
+        "200":
+          description: Array of client summaries
+    post:
+      tags: [Clients]
+      summary: Create a new client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [full_name, client_type, nationality, country_of_birth, date_of_birth, tax_residency, status, is_active]
+              properties:
+                full_name: { type: string }
+                client_type: { type: string, enum: [INDIVIDUAL, CORPORATE, TRUST, POLITICAL] }
+                nationality: { type: string, minLength: 2, maxLength: 2 }
+                country_of_birth: { type: string, minLength: 2, maxLength: 2 }
+                date_of_birth: { type: string, format: date }
+                tax_residency: { type: string, minLength: 2, maxLength: 2 }
+                status: { type: string }
+                is_active: { type: boolean }
+      responses:
+        "201": { description: Client created }
+        "400": { description: Missing required fields }
+
+  /api/clients/{id}:
+    get:
+      tags: [Clients]
+      summary: Get the full record for a client by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Client record }
+        "404": { description: Client not found }
+
+  /api/clients/expiring-documents:
+    get:
+      tags: [Clients]
+      summary: List documents expiring within a lookahead window
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema: { type: integer, default: 30 }
+      responses:
+        "200": { description: Array of expiring documents }
+
+  /api/onboarding/cases:
+    get:
+      tags: [Onboarding Cases]
+      summary: List onboarding cases, optionally filtered by status
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200": { description: Array of case summaries }
+    post:
+      tags: [Onboarding Cases]
+      summary: Open a new onboarding case
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client_id, product_type, case_status]
+              properties:
+                client_id: { type: integer }
+                product_type: { type: string }
+                case_status: { type: string }
+      responses:
+        "201": { description: Case created }
+        "400": { description: Missing required fields }
+
+  /api/onboarding/cases/{id}:
+    get:
+      tags: [Onboarding Cases]
+      summary: Get case details, including client info and submitted documents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Case details }
+        "404": { description: Case not found }
+
+  /api/onboarding/cases/{id}/status:
+    patch:
+      tags: [Onboarding Cases]
+      summary: Update the status of a case
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [case_status]
+              properties:
+                case_status: { type: string, enum: [OPEN, AWAITING_DOCUMENTS, IN_REVIEW, APPROVED, REJECTED] }
+      responses:
+        "200": { description: Case status updated }
+        "404": { description: Case not found }
+        "409": { description: Requested transition is not allowed }
+
+  /api/onboarding/cases/{id}/documents:
+    post:
+      tags: [Onboarding Cases]
+      summary: Submit a new document for a case
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [doc_type_id]
+              properties:
+                doc_type_id: { type: integer }
+      responses:
+        "201": { description: Document submitted }
+        "400": { description: Missing required field }
+
+  /api/onboarding/cases/{id}/documents/{docId}/verify:
+    patch:
+      tags: [Onboarding Cases]
+      summary: Mark a case document as verified
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: docId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Document verified }
+        "404": { description: Document not found or does not match the case }

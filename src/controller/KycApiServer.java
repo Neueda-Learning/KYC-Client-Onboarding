@@ -5,30 +5,46 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import service.DocumentExpiryScheduledJob;
 
 /**
  * Lightweight HTTP API server for the KYC Client Onboarding system.
  */
 public class KycApiServer {
+    private static final Logger logger = LoggerFactory.getLogger(KycApiServer.class);
 
+    /**
+     * Starts the HTTP API server.
+     *
+     * @param args unused command-line arguments
+     * @throws Exception when the server fails to start
+     */
     public static void main(String[] args) throws Exception {
         int port = 8080;
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
 
         server.createContext("/api/clients", new ClientsHandler());
         server.createContext("/api/onboarding/cases", new CasesHandler());
+        server.createContext("/health", new HealthHandler());
+        server.createContext("/openapi.yaml", new OpenApiHandler());
         server.setExecutor(null);
 
-        System.out.println("KYC API Server started on port " + port);
-        System.out.println("  GET/POST http://localhost:" + port + "/api/clients");
-        System.out.println("  GET http://localhost:" + port + "/api/clients/{id}");
-        System.out.println("  GET http://localhost:" + port + "/api/clients/expiring-documents?days={days}");
-        System.out.println("  POST http://localhost:" + port + "/api/onboarding/cases");
-        System.out.println("  GET http://localhost:" + port + "/api/onboarding/cases/{id}");
-        System.out.println("  GET http://localhost:" + port + "/api/onboarding/cases?status={status}");
+        new DocumentExpiryScheduledJob().start();
+
+        logger.info("KYC API Server started on port {}", port);
         server.start();
     }
 
+    /**
+     * Writes a JSON response body with the given HTTP status.
+     *
+     * @param exchange current HTTP exchange
+     * @param status HTTP status code
+     * @param body JSON response body
+     * @throws IOException when writing the response fails
+     */
     public static void sendResponse(HttpExchange exchange, int status, String body) throws IOException {
         byte[] bytes = body.getBytes("UTF-8");
         exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");

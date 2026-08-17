@@ -1,26 +1,66 @@
 package service;
 
-import repository.ClientRepository;
 import java.sql.SQLException;
 import java.util.List;
+import repository.ClientRepository;
 
+/**
+ * Business logic for client operations.
+ */
 public class ClientService {
     private final ClientRepository clientRepository = new ClientRepository();
 
-    public int createClient() throws SQLException {
-        return clientRepository.createClient("Jan Kowalski", "INDIVIDUAL", "PL", "PL", "1990-01-01", "PL", "PENDING", true);
+    /**
+     * Creates a client record using request-provided attributes.
+     *
+     * @param fullName client full name
+     * @param clientType client type
+     * @param nationality nationality code
+     * @param countryOfBirth country of birth code
+     * @param dateOfBirth date of birth in yyyy-MM-dd format
+     * @param taxResidency tax residency code
+     * @param status onboarding status
+     * @param isActive active flag
+     * @return newly created client id
+     * @throws SQLException when persistence fails
+     */
+    public int createClient(String fullName, String clientType, String nationality, String countryOfBirth,
+                            String dateOfBirth, String taxResidency, String status, boolean isActive)
+            throws SQLException {
+        return clientRepository.createClient(fullName, clientType, nationality, countryOfBirth, dateOfBirth,
+                taxResidency, status, isActive);
     }
 
+    /**
+     * Lists a summary of all clients.
+     *
+     * @return JSON array of client summaries
+     * @throws SQLException when the query fails
+     */
     public String listClients() throws SQLException {
         List<String> clients = clientRepository.listClients();
         return "[\n" + String.join(",\n", clients) + "\n]";
     }
 
+    /**
+     * Lists documents expiring within the given number of days.
+     *
+     * @param days lookahead window in days
+     * @return JSON array of expiring documents
+     * @throws SQLException when the query fails
+     */
     public String listExpiringDocuments(int days) throws SQLException {
         List<String> docs = clientRepository.listExpiringDocuments(days);
         return "[\n" + String.join(",\n", docs) + "\n]";
     }
 
+    /**
+     * Fetches the full record for a client.
+     *
+     * @param id client id
+     * @return client JSON representation, or null when not found
+     * @throws SQLException when the query fails
+     */
     public String getClientById(int id) throws SQLException {
         return clientRepository.getClientById(id);
     }

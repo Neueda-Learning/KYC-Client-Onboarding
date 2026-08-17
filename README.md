@@ -20,8 +20,12 @@ PROJECT-KYC/
 │       └── rebuild_indexes.sh       # Optimizes and rebuilds indexes
 ├── src/
 │   ├── lib/
-│   │   └── mysql-connector-j-8.3.0.jar # MySQL JDBC Driver
-│   └── KycApiServer.java            # Lightweight HTTP server (Java Relay API)
+│   │   ├── mysql-connector-j-8.3.0.jar # MySQL JDBC Driver
+│   │   ├── slf4j-api-2.0.13.jar        # SLF4J logging API
+│   │   ├── logback-core-1.5.6.jar      # Logback core
+│   │   └── logback-classic-1.5.6.jar   # Logback SLF4J implementation
+│   ├── logback.xml                  # Logging configuration
+│   └── controller/KycApiServer.java # Lightweight HTTP server (Java Relay API)
 ├── 01_seed_data.sql                 # Test data (10 clients)
 ├── create_database.sql              # Database creation (kyc_db)
 ├── ddl_schema.sql                   # Tables, keys, and relationships
@@ -109,28 +113,77 @@ cd src
 ```
 
 
-2. Compile the Java server with the JDBC driver on the classpath:
+2. Compile the Java server with all dependency jars on the classpath:
 ```bash
-javac -cp "lib/mysql-connector-j-8.3.0.jar" KycApiServer.java
+javac -cp "lib/*" -d out $(find controller repository service -name "*.java")
 
 ```
 
 
-3. Run the API server:
+3. Run the API server (the working directory must contain `logback.xml`):
 * **In Windows environment (Git Bash):**
 ```bash
-java -cp ".;lib/mysql-connector-j-8.3.0.jar" KycApiServer
+java -cp "out;.;lib/*" controller.KycApiServer
 
 ```
 
 
 * **In Linux / macOS environment:**
 ```bash
-java -cp ".:lib/mysql-connector-j-8.3.0.jar" KycApiServer
+java -cp "out:.:lib/*" controller.KycApiServer
 
 ```
 
 
+
+---
+
+### 4. Running Tests
+
+Unit and mock tests (JUnit 5 + Mockito) live in `test/`, mirroring the `src/` package structure. There's no Maven/Gradle — dependencies are plain jars and tests run via the JUnit console launcher.
+
+1. One-time setup — download the JUnit5/Mockito jars into `lib/test/`:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\download-test-libs.ps1
+```
+
+2. Compile and run the full test suite from the repository root:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\run-tests.ps1
+```
+
+This compiles `src/` into `src/out`, compiles `test/` into `testout`, then runs all tests with a tree-style report.
+
+---
+
+### 5. API Documentation, Health Check, and Scheduled Job
+
+* **OpenAPI spec** — `src/openapi.yaml` documents every endpoint below. Once the server is running, fetch it live at `http://localhost:8080/openapi.yaml` and paste it into [Swagger Editor](https://editor.swagger.io) or a local Swagger UI to explore/try the API.
+* **Health / readiness check** — `GET http://localhost:8080/health` checks database connectivity and returns `200 {"status":"UP","database":"UP"}` when the service can accept traffic, or `503 {"status":"DOWN", ...}` when the database is unreachable.
+* **Scheduled document expiry check** — on server startup, a daemon background job runs automatically at **07:00 local time every day** (and every 24h afterwards), checking for documents expiring within 30 days and logging the result via `logback.xml`. No manual trigger is needed; check the server logs for entries from `service.DocumentExpiryScheduledJob`.
+
+---
+
+### 6. Calling the API (curl examples)
+
+Full request/response reference for every endpoint (with sample JSON) is in [API_DOCUMENTATION.md](API_DOCUMENTATION.md). A few quick examples:
+
+```bash
+# List all clients
+curl http://localhost:8080/api/clients
+
+# Create a client
+curl -X POST http://localhost:8080/api/clients \
+  -H "Content-Type: application/json" \
+  -d '{"full_name":"Jane Doe","client_type":"INDIVIDUAL","nationality":"GB","country_of_birth":"GB","date_of_birth":"1985-03-14","tax_residency":"GB","status":"PENDING","is_active":false}'
+# -> {"message":"Client created successfully","client_id":11}
+
+# Update a case status
+curl -X PATCH http://localhost:8080/api/onboarding/cases/1/status \
+  -H "Content-Type: application/json" \
+  -d '{"case_status":"AWAITING_DOCUMENTS"}'
+# -> {"message":"Case status updated successfully","case_id":1,"case_status":"AWAITING_DOCUMENTS"}
+```
 
 
 
@@ -144,4 +197,13 @@ Once running, the API server is available at:
 | ------ | -------- | ----------- |
 | `GET`  | `http://localhost:8080/api/clients` | Returns a summary list of all clients (`client_id`, `full_name`, `client_type`, `nationality`, `status`, `is_active`) |
 | `GET`  | `http://localhost:8080/api/clients/{id}` | Returns the full record for a single client by ID |
+| `GET`  | `http://localhost:8080/api/clients/expiring-documents?days={n}` | Returns documents expiring within the given day window (defaults to 30 days) |
+| `POST` | `http://localhost:8080/api/clients` | Creates a new client. Body: `full_name`, `client_type`, `nationality`, `country_of_birth`, `date_of_birth`, `tax_residency`, `status`, `is_active` |
+| `GET`  | `http://localhost:8080/api/onboarding/cases` | Returns a list of onboarding cases, optionally filtered with `?status={status}` |
 | `GET`  | `http://localhost:8080/api/onboarding/cases/{id}` | Returns case details with client info and all submitted documents for the case |
+| `POST` | `http://localhost:8080/api/onboarding/cases` | Opens a new onboarding case. Body: `client_id`, `product_type`, `case_status` |
+| `PATCH` | `http://localhost:8080/api/onboarding/cases/{id}/status` | Updates the status of a case. Body: `case_status` |
+| `POST` | `http://localhost:8080/api/onboarding/cases/{id}/documents` | Submits a new document for a case. Body: `doc_type_id` |
+| `PATCH` | `http://localhost:8080/api/onboarding/cases/{id}/documents/{docId}/verify` | Marks a case document as verified |
+| `GET`  | `http://localhost:8080/health` | Readiness check — reports whether the service and database can accept traffic |
+| `GET`  | `http://localhost:8080/openapi.yaml` | Machine-readable OpenAPI 3.0 spec for all endpoints |
