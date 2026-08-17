@@ -27,7 +27,7 @@ public class CasesHandler implements HttpHandler {
                     try {
                         handleUploadDocument(exchange, Integer.parseInt(parts[4]));
                     } catch (NumberFormatException e) {
-                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID\"}");
+                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
                 } else {
                     handleCreateOnboardingCase(exchange);
@@ -38,7 +38,7 @@ public class CasesHandler implements HttpHandler {
                         int caseId = Integer.parseInt(parts[4]);
                         handleUpdateCaseStatus(exchange, caseId);
                     } catch (NumberFormatException e) {
-                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID\"}");
+                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
                 } else if (parts.length >= 8 && "documents".equals(parts[5]) && "verify".equals(parts[7])) {
                     try {
@@ -46,7 +46,7 @@ public class CasesHandler implements HttpHandler {
                         int docId = Integer.parseInt(parts[6]);
                         handleVerifyDocument(exchange, caseId, docId);
                     } catch (NumberFormatException e) {
-                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID or document ID\"}");
+                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID or document ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
                 } else {
                     KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid PATCH endpoint path\"}");
@@ -56,7 +56,7 @@ public class CasesHandler implements HttpHandler {
                     try {
                         handleGetCaseById(exchange, Integer.parseInt(parts[4]));
                     } catch (NumberFormatException e) {
-                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID\"}");
+                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
                 } else {
                     String statusFilter = null;

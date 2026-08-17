@@ -24,7 +24,9 @@ public class ClientsHandler implements HttpHandler {
                     if (query != null && query.startsWith("days=")) {
                         try {
                             days = Integer.parseInt(query.substring(5));
-                        } catch (NumberFormatException ignored) {
+                        } catch (NumberFormatException e) {
+                            KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid days parameter: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+                            return;
                         }
                     }
                     handleListExpiringDocuments(exchange, days);
@@ -32,7 +34,7 @@ public class ClientsHandler implements HttpHandler {
                     try {
                         handleGetClientById(exchange, Integer.parseInt(parts[3]));
                     } catch (NumberFormatException e) {
-                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid client ID\"}");
+                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid client ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
                 } else {
                     handleListClients(exchange);
