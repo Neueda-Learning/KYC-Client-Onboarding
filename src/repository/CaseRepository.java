@@ -178,7 +178,7 @@ public class CaseRepository {
      * @return current case status, or null when the case does not exist
      * @throws SQLException when the lookup fails
      */
-    private String getCaseStatus(int caseId) throws SQLException {
+    public String getCaseStatus(int caseId) throws SQLException {
         String sql = "SELECT case_status FROM onboarding_case WHERE case_id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -196,7 +196,7 @@ public class CaseRepository {
      * @return true when at least one unverified document exists
      * @throws SQLException when the lookup fails
      */
-    private boolean hasUnverifiedDocuments(int caseId) throws SQLException {
+    public boolean hasUnverifiedDocuments(int caseId) throws SQLException {
         String sql = "SELECT COUNT(*) FROM document WHERE case_id = ? AND verified_flag = false";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -204,6 +204,29 @@ public class CaseRepository {
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() && rs.getInt(1) > 0;
             }
+        }
+    }
+
+    /**
+     * Persists a case status change without applying state machine validation.
+     * Callers are responsible for validating the requested transition beforehand.
+     *
+     * @param caseId target case id
+     * @param newStatus status to persist
+     * @return true when a matching case was updated
+     * @throws SQLException when the update fails
+     */
+    public boolean setCaseStatus(int caseId, String newStatus) throws SQLException {
+        String sql = "UPDATE onboarding_case SET case_status = ? WHERE case_id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newStatus);
+            ps.setInt(2, caseId);
+            boolean updated = ps.executeUpdate() > 0;
+            if (updated) {
+                logger.info("Case status set: caseId={} to={}", caseId, newStatus);
+            }
+            return updated;
         }
     }
 

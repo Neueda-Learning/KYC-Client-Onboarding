@@ -136,6 +136,24 @@ java -cp "out:.:lib/*" controller.KycApiServer
 
 
 
+---
+
+### 4. Running Tests
+
+Unit and mock tests (JUnit 5 + Mockito) live in `test/`, mirroring the `src/` package structure. There's no Maven/Gradle — dependencies are plain jars and tests run via the JUnit console launcher.
+
+1. One-time setup — download the JUnit5/Mockito jars into `lib/test/`:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\download-test-libs.ps1
+```
+
+2. Compile and run the full test suite from the repository root:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\run-tests.ps1
+```
+
+This compiles `src/` into `src/out`, compiles `test/` into `testout`, then runs all tests with a tree-style report.
+
 
 
 ---

@@ -2,13 +2,89 @@ package service;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import repository.CaseRepository;
+import repository.InvalidStateTransitionException;
 
 /**
  * Business logic for onboarding case operations.
  */
 public class CaseService {
-    private final CaseRepository caseRepository = new CaseRepository();
+    private final CaseRepository caseRepository;
+    private final DocumentChecklistService documentChecklistService;
+
+    /** Allowed case status transitions for the onboarding case state machine. */
+    private static final Map<String, Set<String>> ALLOWED_TRANSITIONS = Map.of(
+            "OPEN", Set.of("AWAITING_DOCUMENTS"),
+            "AWAITING_DOCUMENTS", Set.of("IN_REVIEW"),
+            "IN_REVIEW", Set.of("APPROVED", "REJECTED"),
+            "REJECTED", Set.of("AWAITING_DOCUMENTS"),
+            "APPROVED", Set.of()
+    );
+
+    public CaseService() {
+        this(new CaseRepository(), new DocumentChecklistService());
+    }
+
+    public CaseService(CaseRepository caseRepository, DocumentChecklistService documentChecklistService) {
+        this.caseRepository = caseRepository;
+        this.documentChecklistService = documentChecklistService;
+    }
+
+    /**
+     * Transitions a case to a new status, enforcing the onboarding case state machine:
+     * OPEN -&gt; AWAITING_DOCUMENTS -&gt; IN_REVIEW -&gt; APPROVED/REJECTED, with REJECTED
+     * cases allowed to reopen back to AWAITING_DOCUMENTS.
+     *
+     * @param caseId target case id
+     * @param newStatus requested status
+     * @return true when the case existed and was updated
+     * @throws SQLException when persistence fails
+     * @throws InvalidStateTransitionException when the requested transition is not allowed,
+     *         or the case has unverified documents and the requested status is APPROVED
+     */
+    public boolean transitionCaseStatus(int caseId, String newStatus) throws SQLException {
+        String currentStatus = caseRepository.getCaseStatus(caseId);
+        if (currentStatus == null) {
+            return false;
+        }
+
+        String from = currentStatus.toUpperCase();
+        String to = newStatus.toUpperCase();
+        Set<String> allowedNext = ALLOWED_TRANSITIONS.getOrDefault(from, Set.of());
+        if (!allowedNext.contains(to)) {
+            throw new InvalidStateTransitionException(
+                    "Cannot transition case " + caseId + " from " + currentStatus + " to " + newStatus);
+        }
+
+        if ("APPROVED".equals(to) && caseRepository.hasUnverifiedDocuments(caseId)) {
+            throw new InvalidStateTransitionException(
+                    "Case " + caseId + " has unverified documents and cannot be approved");
+        }
+
+        return caseRepository.setCaseStatus(caseId, to);
+    }
+
+    /**
+     * Submits a document against a case's checklist, only accepting the document
+     * when its type is required for the client's type.
+     *
+     * @param caseId target case id
+     * @param clientType client type used to look up the required checklist
+     * @param docTypeName submitted document type name
+     * @param docTypeId submitted document type id, used for persistence
+     * @return true when the document type matched the checklist and was recorded
+     * @throws SQLException when persistence fails
+     */
+    public boolean submitDocumentForChecklist(int caseId, String clientType, String docTypeName, int docTypeId)
+            throws SQLException {
+        if (!documentChecklistService.isRequiredDocument(clientType, docTypeName)) {
+            return false;
+        }
+        caseRepository.uploadDocument(caseId, docTypeId);
+        return true;
+    }
 
     /**
      * Creates a new onboarding case with request-provided attributes.
