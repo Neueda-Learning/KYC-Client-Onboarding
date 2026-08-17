@@ -100,10 +100,10 @@ class CaseServiceTest {
     @ParameterizedTest
     @CsvSource({
             "OPEN, IN_REVIEW",
-            "OPEN, APPROVED",
-            "AWAITING_DOCUMENTS, APPROVED",
             "APPROVED, IN_REVIEW",
-            "APPROVED, AWAITING_DOCUMENTS"
+            "APPROVED, AWAITING_DOCUMENTS",
+            "REJECTED, IN_REVIEW",
+            "REJECTED, APPROVED"
     })
     void invalidTransitionsAreRejected(String currentStatus, String requestedStatus) throws SQLException {
         when(caseRepository.getCaseStatus(1)).thenReturn(currentStatus);
@@ -113,12 +113,19 @@ class CaseServiceTest {
         verify(caseRepository, never()).setCaseStatus(anyInt(), org.mockito.ArgumentMatchers.anyString());
     }
 
-    // ---- Parameterised: approving a case with unverified documents ----
+    // ---- Parameterised: premature approval is blocked (wrong state or unverified documents) ----
 
-    @Test
-    void approvingCaseWithUnverifiedDocumentsIsRejected() throws SQLException {
-        when(caseRepository.getCaseStatus(1)).thenReturn("IN_REVIEW");
-        when(caseRepository.hasUnverifiedDocuments(1)).thenReturn(true);
+    @ParameterizedTest
+    @CsvSource({
+            "OPEN, false",
+            "AWAITING_DOCUMENTS, false",
+            "IN_REVIEW, true"
+    })
+    void prematureApprovalIsBlocked(String currentStatus, boolean hasUnverifiedDocuments) throws SQLException {
+        when(caseRepository.getCaseStatus(1)).thenReturn(currentStatus);
+        if ("IN_REVIEW".equals(currentStatus)) {
+            when(caseRepository.hasUnverifiedDocuments(1)).thenReturn(hasUnverifiedDocuments);
+        }
 
         assertThrows(InvalidStateTransitionException.class, () -> caseService.transitionCaseStatus(1, "APPROVED"));
         verify(caseRepository, never()).setCaseStatus(anyInt(), org.mockito.ArgumentMatchers.anyString());

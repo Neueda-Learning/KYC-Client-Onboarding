@@ -154,6 +154,37 @@ powershell -ExecutionPolicy Bypass -File scripts\run-tests.ps1
 
 This compiles `src/` into `src/out`, compiles `test/` into `testout`, then runs all tests with a tree-style report.
 
+---
+
+### 5. API Documentation, Health Check, and Scheduled Job
+
+* **OpenAPI spec** — `src/openapi.yaml` documents every endpoint below. Once the server is running, fetch it live at `http://localhost:8080/openapi.yaml` and paste it into [Swagger Editor](https://editor.swagger.io) or a local Swagger UI to explore/try the API.
+* **Health / readiness check** — `GET http://localhost:8080/health` checks database connectivity and returns `200 {"status":"UP","database":"UP"}` when the service can accept traffic, or `503 {"status":"DOWN", ...}` when the database is unreachable.
+* **Scheduled document expiry check** — on server startup, a daemon background job runs automatically at **07:00 local time every day** (and every 24h afterwards), checking for documents expiring within 30 days and logging the result via `logback.xml`. No manual trigger is needed; check the server logs for entries from `service.DocumentExpiryScheduledJob`.
+
+---
+
+### 6. Calling the API (curl examples)
+
+Full request/response reference for every endpoint (with sample JSON) is in [API_DOCUMENTATION.md](API_DOCUMENTATION.md). A few quick examples:
+
+```bash
+# List all clients
+curl http://localhost:8080/api/clients
+
+# Create a client
+curl -X POST http://localhost:8080/api/clients \
+  -H "Content-Type: application/json" \
+  -d '{"full_name":"Jane Doe","client_type":"INDIVIDUAL","nationality":"GB","country_of_birth":"GB","date_of_birth":"1985-03-14","tax_residency":"GB","status":"PENDING","is_active":false}'
+# -> {"message":"Client created successfully","client_id":11}
+
+# Update a case status
+curl -X PATCH http://localhost:8080/api/onboarding/cases/1/status \
+  -H "Content-Type: application/json" \
+  -d '{"case_status":"AWAITING_DOCUMENTS"}'
+# -> {"message":"Case status updated successfully","case_id":1,"case_status":"AWAITING_DOCUMENTS"}
+```
+
 
 
 ---
@@ -174,3 +205,5 @@ Once running, the API server is available at:
 | `PATCH` | `http://localhost:8080/api/onboarding/cases/{id}/status` | Updates the status of a case. Body: `case_status` |
 | `POST` | `http://localhost:8080/api/onboarding/cases/{id}/documents` | Submits a new document for a case. Body: `doc_type_id` |
 | `PATCH` | `http://localhost:8080/api/onboarding/cases/{id}/documents/{docId}/verify` | Marks a case document as verified |
+| `GET`  | `http://localhost:8080/health` | Readiness check — reports whether the service and database can accept traffic |
+| `GET`  | `http://localhost:8080/openapi.yaml` | Machine-readable OpenAPI 3.0 spec for all endpoints |

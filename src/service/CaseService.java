@@ -4,6 +4,8 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import repository.CaseRepository;
 import repository.InvalidStateTransitionException;
 
@@ -11,6 +13,8 @@ import repository.InvalidStateTransitionException;
  * Business logic for onboarding case operations.
  */
 public class CaseService {
+    private static final Logger logger = LoggerFactory.getLogger(CaseService.class);
+
     private final CaseRepository caseRepository;
     private final DocumentChecklistService documentChecklistService;
 
@@ -47,6 +51,7 @@ public class CaseService {
     public boolean transitionCaseStatus(int caseId, String newStatus) throws SQLException {
         String currentStatus = caseRepository.getCaseStatus(caseId);
         if (currentStatus == null) {
+            logger.warn("Case status transition failed: caseId={} reason=case not found", caseId);
             return false;
         }
 
@@ -54,16 +59,22 @@ public class CaseService {
         String to = newStatus.toUpperCase();
         Set<String> allowedNext = ALLOWED_TRANSITIONS.getOrDefault(from, Set.of());
         if (!allowedNext.contains(to)) {
+            logger.warn("Case status transition rejected: caseId={} from={} to={} reason=disallowed transition",
+                    caseId, currentStatus, newStatus);
             throw new InvalidStateTransitionException(
                     "Cannot transition case " + caseId + " from " + currentStatus + " to " + newStatus);
         }
 
         if ("APPROVED".equals(to) && caseRepository.hasUnverifiedDocuments(caseId)) {
+            logger.warn("Case status transition rejected: caseId={} from={} to={} reason=unverified documents",
+                    caseId, currentStatus, newStatus);
             throw new InvalidStateTransitionException(
                     "Case " + caseId + " has unverified documents and cannot be approved");
         }
 
-        return caseRepository.setCaseStatus(caseId, to);
+        boolean updated = caseRepository.setCaseStatus(caseId, to);
+        logger.info("Case status transitioned: caseId={} from={} to={}", caseId, currentStatus, to);
+        return updated;
     }
 
     /**
@@ -80,9 +91,13 @@ public class CaseService {
     public boolean submitDocumentForChecklist(int caseId, String clientType, String docTypeName, int docTypeId)
             throws SQLException {
         if (!documentChecklistService.isRequiredDocument(clientType, docTypeName)) {
+            logger.warn("Document submission rejected: caseId={} clientType={} docType={} reason=not on checklist",
+                    caseId, clientType, docTypeName);
             return false;
         }
         caseRepository.uploadDocument(caseId, docTypeId);
+        logger.info("Checklist document accepted: caseId={} clientType={} docType={}",
+                caseId, clientType, docTypeName);
         return true;
     }
 

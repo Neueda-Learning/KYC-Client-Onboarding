@@ -7,6 +7,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import service.DocumentExpiryScheduledJob;
 
 /**
  * Lightweight HTTP API server for the KYC Client Onboarding system.
@@ -26,7 +27,11 @@ public class KycApiServer {
 
         server.createContext("/api/clients", new ClientsHandler());
         server.createContext("/api/onboarding/cases", new CasesHandler());
+        server.createContext("/health", new HealthHandler());
+        server.createContext("/openapi.yaml", new OpenApiHandler());
         server.setExecutor(null);
+
+        new DocumentExpiryScheduledJob().start();
 
         logger.info("KYC API Server started on port {}", port);
         server.start();

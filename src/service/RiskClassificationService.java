@@ -2,12 +2,15 @@ package service;
 
 import java.util.Collection;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Determines the KYC risk level (LOW / MEDIUM / HIGH) for an onboarding case
  * based on client type, nationality, and submitted document types.
  */
 public class RiskClassificationService {
+    private static final Logger logger = LoggerFactory.getLogger(RiskClassificationService.class);
 
     public static final String LOW = "LOW";
     public static final String MEDIUM = "MEDIUM";
@@ -36,6 +39,8 @@ public class RiskClassificationService {
 
         // Political exposure is always treated as high risk.
         if ("POLITICAL".equals(type)) {
+            logger.warn("Risk classified: clientType={} nationality={} riskLevel={} reason=political exposure",
+                    type, nationality, HIGH);
             return HIGH;
         }
 
@@ -44,17 +49,23 @@ public class RiskClassificationService {
                 && submittedDocumentTypes.stream().anyMatch(HIGH_RISK_DOCUMENT_TYPES::contains);
 
         if (highRiskNationality || hasHighRiskDocument) {
+            logger.warn(
+                    "Risk classified: clientType={} nationality={} riskLevel={} highRiskNationality={} highRiskDocument={}",
+                    type, nationality, HIGH, highRiskNationality, hasHighRiskDocument);
             return HIGH;
         }
 
         if ("CORPORATE".equals(type) || "TRUST".equals(type)) {
+            logger.info("Risk classified: clientType={} nationality={} riskLevel={}", type, nationality, MEDIUM);
             return MEDIUM;
         }
 
         if ("INDIVIDUAL".equals(type)) {
+            logger.info("Risk classified: clientType={} nationality={} riskLevel={}", type, nationality, LOW);
             return LOW;
         }
 
         throw new IllegalArgumentException("Unsupported client type: " + clientType);
     }
 }
+
