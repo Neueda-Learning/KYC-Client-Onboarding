@@ -3,6 +3,7 @@ import java.net.InetSocketAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import service.DocumentExpiryScheduledJob;
+import controller.AuthHandler;
 import controller.ClientsHandler;
 import controller.CasesHandler;
 import controller.HealthHandler;
@@ -26,6 +27,7 @@ public class KycApiServer {
 
         server.createContext("/api/clients", new ClientsHandler());
         server.createContext("/api/onboarding/cases", new CasesHandler());
+        server.createContext("/api/auth/login", new AuthHandler());
         server.createContext("/health", new HealthHandler());
         server.createContext("/openapi.yaml", new OpenApiHandler());
         server.setExecutor(null);

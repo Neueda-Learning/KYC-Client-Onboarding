@@ -24,6 +24,9 @@ public class HealthHandler implements HttpHandler {
      */
     @Override
     public void handle(HttpExchange exchange) throws IOException {
+        if (HttpResponseUtil.handlePreflight(exchange)) {
+            return;
+        }
         if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
             logger.warn("Health check request rejected: method={} not allowed", exchange.getRequestMethod());
             HttpResponseUtil.sendResponse(exchange, 405, "{\"error\":\"Method Not Allowed\"}");

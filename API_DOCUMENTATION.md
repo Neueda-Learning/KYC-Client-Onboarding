@@ -8,6 +8,36 @@ All examples assume the server is running locally on port `8080` (see README sec
 
 ---
 
+## Auth
+
+### `POST /api/auth/login`
+
+Checks the username/password against the `client`, `compliance_officer` and `admin_officer`
+tables (in that order) and returns the matched role and entity id. Passwords are verified
+against salted PBKDF2-HMAC-SHA256 hashes (see [PasswordHasher.java](src/util/PasswordHasher.java)).
+
+```bash
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "michael.brown", "password": "Br0wn#Falcon91"}'
+```
+
+```json
+{"role":"CLIENT","entity_id":1,"full_name":"Michael Brown","username":"michael.brown"}
+```
+
+Invalid credentials, `401` (deliberately generic — doesn't reveal whether the username exists):
+```json
+{"error":"Invalid username or password"}
+```
+
+Missing fields, `400`:
+```json
+{"error":"Missing required fields: username, password"}
+```
+
+---
+
 ## System
 
 ### `GET /health`

@@ -6,6 +6,7 @@ info:
 servers:
   - url: http://localhost:8080
 tags:
+  - name: Auth
   - name: Clients
   - name: Onboarding Cases
   - name: System
@@ -44,6 +45,40 @@ paths:
       responses:
         "200":
           description: OpenAPI spec in YAML format
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in as a client, compliance officer, or admin compliance officer
+      description: >
+        Checks the username/password against the client, compliance_officer and
+        admin_officer tables in that order and returns the matched role and entity id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          description: Login succeeded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  role: { type: string, enum: [CLIENT, COMPLIANCE_OFFICER, ADMIN_COMPLIANCE_OFFICER] }
+                  entity_id: { type: integer, description: client_id, officer_id or admin_id depending on role }
+                  full_name: { type: string }
+                  username: { type: string }
+        "400":
+          description: Missing username or password
+        "401":
+          description: Invalid username or password
 
   /api/clients:
     get:

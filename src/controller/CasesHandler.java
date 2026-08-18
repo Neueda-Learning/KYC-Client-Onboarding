@@ -29,6 +29,9 @@ public class CasesHandler implements HttpHandler {
      */
     @Override
     public void handle(HttpExchange exchange) throws IOException {
+        if (HttpResponseUtil.handlePreflight(exchange)) {
+            return;
+        }
         String method = exchange.getRequestMethod();
         String path = exchange.getRequestURI().getPath();
         String query = exchange.getRequestURI().getQuery();
