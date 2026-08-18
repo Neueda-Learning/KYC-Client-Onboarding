@@ -1,0 +1,129 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  backend:
+    name: Backend (Java) build & test
+    # run-tests.ps1 builds a Windows-style (';') classpath, so this job needs a Windows runner.
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Download test dependencies (JUnit5, Mockito, Byte Buddy, Objenesis)
+        working-directory: .
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts\download-test-libs.ps1
+
+      - name: Compile and run unit tests
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts\run-tests.ps1
+
+      - name: Compile API server sources
+        shell: bash
+        working-directory: src
+        run: |
+          javac -cp "lib/*" -d out $(find . -maxdepth 1 -name "*.java") $(find controller repository service util -name "*.java")
+
+  db-integration:
+    name: Database integration smoke test
+    # Needs a Linux runner for the MySQL service container; DatabaseConnection
+    # connects to localhost:3306/kyc_db using MYSQL_USER/MYSQL_PASSWORD.
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: kyc_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Load schema, views/procedures, and seed data
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root -e "DROP DATABASE IF EXISTS kyc_db; CREATE DATABASE kyc_db;"
+          mysql -h 127.0.0.1 -P 3306 -u root < ddl_schema.sql
+          mysql -h 127.0.0.1 -P 3306 -u root < views_and_stored_procedures.sql
+          mysql -h 127.0.0.1 -P 3306 -u root < 01_seed_data.sql
+
+      - name: Compile API server sources
+        working-directory: src
+        run: |
+          javac -cp "lib/*" -d out $(find . -maxdepth 1 -name "*.java") $(find controller repository service util -name "*.java")
+
+      - name: Start API server against the real database
+        working-directory: src
+        env:
+          MYSQL_USER: root
+          MYSQL_PASSWORD: ''
+        run: |
+          java -cp "out:.:lib/*" KycApiServer &
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8080/health && break
+            sleep 1
+          done
+
+      - name: Verify readiness reports the database as UP
+        run: |
+          status=$(curl -sf http://localhost:8080/health)
+          echo "$status"
+          echo "$status" | grep -q '"database":"UP"'
+
+      - name: Verify seeded clients are readable through the API
+        run: |
+          clients=$(curl -sf http://localhost:8080/api/clients)
+          echo "$clients"
+          echo "$clients" | grep -q 'client_id'
+  frontend:
+    name: Frontend (React) lint & build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
