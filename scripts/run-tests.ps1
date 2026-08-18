@@ -13,8 +13,9 @@ Remove-Item -Recurse -Force "$root\testout" -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path "$root\src\out" | Out-Null
 New-Item -ItemType Directory -Force -Path "$root\testout" | Out-Null
 
-$mainFiles = Get-ChildItem -Recurse -Filter *.java "$root\src\controller", "$root\src\repository", "$root\src\service" |
+$mainFiles = Get-ChildItem -Recurse -Filter *.java "$root\src\controller", "$root\src\repository", "$root\src\service", "$root\src\util" |
     Select-Object -ExpandProperty FullName
+$mainFiles += Get-ChildItem -Filter *.java "$root\src" | Select-Object -ExpandProperty FullName
 javac -cp "$root\src\lib\*" -d "$root\src\out" $mainFiles
 if ($LASTEXITCODE -ne 0) { throw "Main source compilation failed" }
 

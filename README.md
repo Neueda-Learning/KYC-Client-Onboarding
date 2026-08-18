@@ -25,7 +25,8 @@ PROJECT-KYC/
 │   │   ├── logback-core-1.5.6.jar      # Logback core
 │   │   └── logback-classic-1.5.6.jar   # Logback SLF4J implementation
 │   ├── logback.xml                  # Logging configuration
-│   └── controller/KycApiServer.java # Lightweight HTTP server (Java Relay API)
+│   ├── KycApiServer.java            # Lightweight HTTP server (Java Relay API)
+│   └── util/HttpResponseUtil.java   # Shared HTTP response helper
 ├── 01_seed_data.sql                 # Test data (10 clients)
 ├── create_database.sql              # Database creation (kyc_db)
 ├── ddl_schema.sql                   # Tables, keys, and relationships
@@ -115,7 +116,7 @@ cd src
 
 2. Compile the Java server with all dependency jars on the classpath:
 ```bash
-javac -cp "lib/*" -d out $(find controller repository service -name "*.java")
+javac -cp "lib/*" -d out $(find . -maxdepth 1 -name "*.java") $(find controller repository service util -name "*.java")
 
 ```
 
@@ -123,14 +124,14 @@ javac -cp "lib/*" -d out $(find controller repository service -name "*.java")
 3. Run the API server (the working directory must contain `logback.xml`):
 * **In Windows environment (Git Bash):**
 ```bash
-java -cp "out;.;lib/*" controller.KycApiServer
+java -cp "out;.;lib/*" KycApiServer
 
 ```
 
 
 * **In Linux / macOS environment:**
 ```bash
-java -cp "out:.:lib/*" controller.KycApiServer
+java -cp "out:.:lib/*" KycApiServer
 
 ```
 

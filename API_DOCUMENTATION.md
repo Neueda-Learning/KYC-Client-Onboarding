@@ -1,7 +1,7 @@
 # KYC Client Onboarding API — Reference Guide
 
 Full request/response reference for every endpoint exposed by the Java relay server
-([KycApiServer.java](src/controller/KycApiServer.java)). See [openapi.yaml](src/openapi.yaml) for the
+([KycApiServer.java](src/KycApiServer.java)). See [openapi.yaml](src/openapi.yaml) for the
 machine-readable spec (also served live at `GET /openapi.yaml`).
 
 All examples assume the server is running locally on port `8080` (see README section 3).
