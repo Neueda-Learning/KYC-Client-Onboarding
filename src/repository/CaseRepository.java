@@ -230,25 +230,40 @@ public class CaseRepository {
         }
     }
 
-    public List<String> listCases(String statusFilter) throws SQLException {
+    public List<String> listCases(String statusFilter, Integer officerFilter) throws SQLException {
         String sql = "SELECT oc.case_id, oc.client_id, oc.opened_date, oc.product_type, oc.case_status, " +
+                "oc.due_date, oc.assigned_officer_id, co.full_name AS officer_name, " +
                 "c.full_name AS client_name, c.client_type " +
-                "FROM onboarding_case oc JOIN client c ON oc.client_id = c.client_id";
+                "FROM onboarding_case oc JOIN client c ON oc.client_id = c.client_id " +
+                "LEFT JOIN compliance_officer co ON oc.assigned_officer_id = co.officer_id";
 
+        List<String> conditions = new ArrayList<>();
         if (statusFilter != null && !statusFilter.isEmpty()) {
-            sql += " WHERE oc.case_status = ?";
+            conditions.add("oc.case_status = ?");
+        }
+        if (officerFilter != null) {
+            conditions.add("oc.assigned_officer_id = ?");
+        }
+        if (!conditions.isEmpty()) {
+            sql += " WHERE " + String.join(" AND ", conditions);
         }
 
         List<String> list = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
+            int paramIndex = 1;
             if (statusFilter != null && !statusFilter.isEmpty()) {
-                ps.setString(1, statusFilter);
+                ps.setString(paramIndex++, statusFilter);
+            }
+            if (officerFilter != null) {
+                ps.setInt(paramIndex++, officerFilter);
             }
 
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
+                    int officerId = rs.getInt("assigned_officer_id");
+                    boolean hasOfficer = !rs.wasNull();
                     String json = "  {"
                             + "\"case_id\":" + rs.getInt("case_id") + ","
                             + "\"client_id\":" + rs.getInt("client_id") + ","
@@ -256,13 +271,42 @@ public class CaseRepository {
                             + "\"client_type\":\"" + DatabaseConnection.escape(rs.getString("client_type")) + "\","
                             + "\"product_type\":\"" + DatabaseConnection.escape(rs.getString("product_type")) + "\","
                             + "\"case_status\":\"" + DatabaseConnection.escape(rs.getString("case_status")) + "\","
-                            + "\"opened_date\":\"" + rs.getString("opened_date") + "\""
+                            + "\"opened_date\":\"" + rs.getString("opened_date") + "\","
+                            + "\"due_date\":" + DatabaseConnection.jsonStringOrNull(rs.getString("due_date")) + ","
+                            + "\"assigned_officer_id\":" + (hasOfficer ? officerId : "null") + ","
+                            + "\"officer_name\":" + DatabaseConnection.jsonStringOrNull(rs.getString("officer_name"))
                             + "}";
                     list.add(json);
                 }
             }
         }
         return list;
+    }
+
+    /**
+     * Assigns (or unassigns, when officerId is null) the compliance officer handling a case.
+     *
+     * @param caseId target case id
+     * @param officerId officer id to assign, or null to unassign
+     * @return true when a matching case was updated
+     * @throws SQLException when persistence fails
+     */
+    public boolean assignOfficer(int caseId, Integer officerId) throws SQLException {
+        String sql = "UPDATE onboarding_case SET assigned_officer_id = ? WHERE case_id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (officerId == null) {
+                ps.setNull(1, Types.INTEGER);
+            } else {
+                ps.setInt(1, officerId);
+            }
+            ps.setInt(2, caseId);
+            boolean updated = ps.executeUpdate() > 0;
+            if (updated) {
+                logger.info("Case officer assigned: caseId={} officerId={}", caseId, officerId);
+            }
+            return updated;
+        }
     }
 
     public String getCaseById(int id) throws SQLException {

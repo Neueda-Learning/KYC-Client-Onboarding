@@ -21,6 +21,7 @@ export default function Navbar() {
   return (
     <nav className="navbar">
       <Link to="/" className="navbar-brand">
+        <span className="logo-triangle" aria-hidden="true"></span>
         KYC Client Onboarding
       </Link>
       <div className="navbar-user">

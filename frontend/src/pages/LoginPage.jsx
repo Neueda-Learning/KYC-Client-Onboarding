@@ -34,6 +34,10 @@ export default function LoginPage() {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={handleSubmit}>
+        <div className="login-logo">
+          <span className="logo-triangle" aria-hidden="true"></span>
+          <span>KYC Onboarding</span>
+        </div>
         <h1>KYC Client Onboarding</h1>
         <p className="login-subtitle">Sign in to continue</p>
 

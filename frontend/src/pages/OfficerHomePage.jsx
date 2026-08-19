@@ -13,10 +13,10 @@ export default function OfficerHomePage() {
     let cancelled = false;
 
     api
-      .getCases()
+      .getCases(undefined, user.entityId)
       .then((all) => {
         if (!cancelled) {
-          setCases(all.filter((c) => c.assigned_officer_id === user.entityId));
+          setCases(all);
         }
       })
       .catch((err) => !cancelled && setError(err.message))
@@ -33,15 +33,11 @@ export default function OfficerHomePage() {
   return (
     <div className="page">
       <h1>My Cases</h1>
-      <p className="hint">
-        Note: the backend doesn't yet filter cases by assigned officer, so this list is filtered
-        on the frontend and requires case data to include an assigned_officer_id.
-      </p>
 
       {cases.length === 0 ? (
         <p>No cases are currently assigned to you.</p>
       ) : (
-        <table>
+        <table className="cases-table">
           <thead>
             <tr>
               <th>Case ID</th>
@@ -56,7 +52,7 @@ export default function OfficerHomePage() {
             {cases.map((c) => (
               <tr key={c.case_id}>
                 <td>{c.case_id}</td>
-                <td>{c.client_name}</td>
+                <td className="client-name">{c.client_name}</td>
                 <td>{c.product_type}</td>
                 <td>
                   <span className={`status-badge status-${c.case_status.toLowerCase()}`}>
@@ -65,7 +61,7 @@ export default function OfficerHomePage() {
                 </td>
                 <td>{c.opened_date}</td>
                 <td>
-                  <Link to={`/cases/${c.case_id}`}>View</Link>
+                  <Link to={`/cases/${c.case_id}`} className="view-case-button">View</Link>
                 </td>
               </tr>
             ))}
