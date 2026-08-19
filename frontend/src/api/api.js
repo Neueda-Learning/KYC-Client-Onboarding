@@ -22,7 +22,13 @@ export const api = {
     }),
   getClients: () => request('/api/clients'),
   getClient: (id) => request(`/api/clients/${id}`),
-  getCases: (status) => request(`/api/onboarding/cases${status ? `?status=${status}` : ''}`),
+  getCases: (status, assignedOfficerId) => {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (assignedOfficerId != null) params.set('assigned_officer_id', assignedOfficerId);
+    const qs = params.toString();
+    return request(`/api/onboarding/cases${qs ? `?${qs}` : ''}`);
+  },
   getCase: (id) => request(`/api/onboarding/cases/${id}`),
   updateCaseStatus: (id, case_status) =>
     request(`/api/onboarding/cases/${id}/status`, {
@@ -31,4 +37,10 @@ export const api = {
     }),
   verifyDocument: (caseId, docId) =>
     request(`/api/onboarding/cases/${caseId}/documents/${docId}/verify`, { method: 'PATCH' }),
+  getOfficers: () => request('/api/officers'),
+  assignOfficer: (caseId, officerId) =>
+    request(`/api/onboarding/cases/${caseId}/officer`, {
+      method: 'PATCH',
+      body: JSON.stringify({ officer_id: officerId }),
+    }),
 };

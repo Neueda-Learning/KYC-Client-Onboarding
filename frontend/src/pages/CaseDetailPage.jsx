@@ -91,7 +91,7 @@ export default function CaseDetailPage() {
         {caseData.documents.length === 0 ? (
           <p>No documents submitted yet.</p>
         ) : (
-          <table>
+          <table className="cases-table">
             <thead>
               <tr>
                 <th>Type</th>

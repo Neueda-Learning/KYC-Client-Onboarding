@@ -7,6 +7,7 @@ import controller.AuthHandler;
 import controller.ClientsHandler;
 import controller.CasesHandler;
 import controller.HealthHandler;
+import controller.OfficersHandler;
 import controller.OpenApiHandler;
 
 /**
@@ -27,6 +28,7 @@ public class KycApiServer {
 
         server.createContext("/api/clients", new ClientsHandler());
         server.createContext("/api/onboarding/cases", new CasesHandler());
+        server.createContext("/api/officers", new OfficersHandler());
         server.createContext("/api/auth/login", new AuthHandler());
         server.createContext("/health", new HealthHandler());
         server.createContext("/openapi.yaml", new OpenApiHandler());

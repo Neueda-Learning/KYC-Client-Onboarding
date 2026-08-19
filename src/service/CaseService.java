@@ -152,14 +152,27 @@ public class CaseService {
     }
 
     /**
-     * Lists onboarding cases, optionally filtered by status.
+     * Assigns (or unassigns, when officerId is null) the compliance officer handling a case.
+     *
+     * @param caseId target case id
+     * @param officerId officer id to assign, or null to unassign
+     * @return true when the case existed and was updated
+     * @throws SQLException when persistence fails
+     */
+    public boolean assignOfficer(int caseId, Integer officerId) throws SQLException {
+        return caseRepository.assignOfficer(caseId, officerId);
+    }
+
+    /**
+     * Lists onboarding cases, optionally filtered by status and/or assigned officer.
      *
      * @param statusFilter status to filter by, or null/empty for all cases
+     * @param officerFilter assigned officer id to filter by, or null for all officers
      * @return JSON array of case summaries
      * @throws SQLException when the query fails
      */
-    public String listCases(String statusFilter) throws SQLException {
-        List<String> cases = caseRepository.listCases(statusFilter);
+    public String listCases(String statusFilter, Integer officerFilter) throws SQLException {
+        List<String> cases = caseRepository.listCases(statusFilter, officerFilter);
         return "[\n" + String.join(",\n", cases) + "\n]";
     }
 

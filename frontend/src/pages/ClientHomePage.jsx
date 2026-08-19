@@ -96,7 +96,7 @@ export default function ClientHomePage() {
         {caseData.documents.length === 0 ? (
           <p>No documents uploaded yet.</p>
         ) : (
-          <table>
+          <table className="cases-table">
             <thead>
               <tr>
                 <th>Type</th>

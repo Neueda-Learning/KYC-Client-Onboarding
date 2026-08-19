@@ -20,6 +20,7 @@ import util.HttpResponseUtil;
 public class CasesHandler implements HttpHandler {
     private static final Logger logger = LoggerFactory.getLogger(CasesHandler.class);
     private final CaseService caseService = new CaseService();
+    private final service.OfficerService officerService = new service.OfficerService();
 
     /**
      * Dispatches requests for /api/onboarding/cases routes.
@@ -58,6 +59,13 @@ public class CasesHandler implements HttpHandler {
                     } catch (NumberFormatException e) {
                         HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
+                } else if (parts.length == 6 && "officer".equals(parts[5])) {
+                    try {
+                        int caseId = Integer.parseInt(parts[4]);
+                        handleAssignOfficer(exchange, caseId);
+                    } catch (NumberFormatException e) {
+                        HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+                    }
                 } else if (parts.length == 8 && "documents".equals(parts[5]) && "verify".equals(parts[7])) {
                     try {
                         int caseId = Integer.parseInt(parts[4]);
@@ -77,11 +85,16 @@ public class CasesHandler implements HttpHandler {
                         HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
                 } else if (parts.length == 4 && "cases".equals(parts[3])) {
-                    String statusFilter = null;
-                    if (query != null && query.startsWith("status=")) {
-                        statusFilter = query.substring(7);
+                    String statusFilter = parseQueryParam(query, "status");
+                    String officerParam = parseQueryParam(query, "assigned_officer_id");
+                    Integer officerFilter;
+                    try {
+                        officerFilter = officerParam == null ? null : Integer.valueOf(officerParam);
+                    } catch (NumberFormatException e) {
+                        HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid assigned_officer_id\"}");
+                        return;
                     }
-                    handleListCases(exchange, statusFilter);
+                    handleListCases(exchange, statusFilter, officerFilter);
                 } else {
                     HttpResponseUtil.sendResponse(exchange, 404, "{\"error\":\"Invalid GET endpoint path\"}");
                 }
@@ -167,6 +180,30 @@ public class CasesHandler implements HttpHandler {
     }
 
     /**
+     * Handles a case officer assignment request.
+     *
+     * @param exchange current HTTP exchange
+     * @param caseId target case id
+     * @throws IOException when response writing fails
+     * @throws SQLException when persistence fails
+     */
+    private void handleAssignOfficer(HttpExchange exchange, int caseId) throws IOException, SQLException {
+        String body = readBody(exchange);
+        Integer officerId = extractInt(body, "officer_id");
+
+        boolean updated = caseService.assignOfficer(caseId, officerId);
+        if (updated) {
+            String officerName = officerId == null ? null : officerService.getOfficerName(officerId);
+            HttpResponseUtil.sendResponse(exchange, 200, "{\"message\":\"Case officer assigned successfully\",\"case_id\":" + caseId
+                    + ",\"assigned_officer_id\":" + (officerId == null ? "null" : officerId)
+                    + ",\"officer_name\":" + repository.DatabaseConnection.jsonStringOrNull(officerName) + "}");
+        } else {
+            logger.warn("Case officer assignment failed: caseId={} reason=case not found", caseId);
+            HttpResponseUtil.sendResponse(exchange, 404, "{\"error\":\"Case not found\"}");
+        }
+    }
+
+    /**
      * Handles verification of a document belonging to a case.
      *
      * @param exchange current HTTP exchange
@@ -185,16 +222,38 @@ public class CasesHandler implements HttpHandler {
     }
 
     /**
-     * Handles listing of onboarding cases, optionally filtered by status.
+     * Handles listing of onboarding cases, optionally filtered by status and/or assigned officer.
      *
      * @param exchange current HTTP exchange
      * @param statusFilter status to filter by, or null for all cases
+     * @param officerFilter assigned officer id to filter by, or null for all officers
      * @throws IOException when response writing fails
      * @throws SQLException when the query fails
      */
-    private void handleListCases(HttpExchange exchange, String statusFilter) throws IOException, SQLException {
-        String json = caseService.listCases(statusFilter);
+    private void handleListCases(HttpExchange exchange, String statusFilter, Integer officerFilter) throws IOException, SQLException {
+        String json = caseService.listCases(statusFilter, officerFilter);
         HttpResponseUtil.sendResponse(exchange, 200, json);
+    }
+
+    /**
+     * Extracts a single query-string parameter value.
+     *
+     * @param query raw query string, or null
+     * @param key parameter name to look up
+     * @return decoded value, or null when absent
+     */
+    private String parseQueryParam(String query, String key) {
+        if (query == null || query.isEmpty()) {
+            return null;
+        }
+        for (String pair : query.split("&")) {
+            int eq = pair.indexOf('=');
+            String pairKey = eq == -1 ? pair : pair.substring(0, eq);
+            if (pairKey.equals(key)) {
+                return eq == -1 ? "" : pair.substring(eq + 1);
+            }
+        }
+        return null;
     }
 
     /**
