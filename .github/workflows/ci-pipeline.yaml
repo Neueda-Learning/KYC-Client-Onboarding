@@ -83,6 +83,15 @@ jobs:
           mysql -h 127.0.0.1 -P 3306 -u root < views_and_stored_procedures.sql
           mysql -h 127.0.0.1 -P 3306 -u root < 01_seed_data.sql
 
+      - name: Download runtime dependencies (SLF4J, Logback, MySQL connector)
+        working-directory: src
+        run: |
+          mkdir -p lib
+          curl -sSL -o lib/slf4j-api-2.0.13.jar "https://repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.13/slf4j-api-2.0.13.jar"
+          curl -sSL -o lib/logback-classic-1.5.6.jar "https://repo1.maven.org/maven2/ch/qos/logback/logback-classic/1.5.6/logback-classic-1.5.6.jar"
+          curl -sSL -o lib/logback-core-1.5.6.jar "https://repo1.maven.org/maven2/ch/qos/logback/logback-core/1.5.6/logback-core-1.5.6.jar"
+          curl -sSL -o lib/mysql-connector-j-8.3.0.jar "https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.3.0/mysql-connector-j-8.3.0.jar"
+
       - name: Compile API server sources
         working-directory: src
         run: |
