@@ -15,6 +15,7 @@ import service.CaseService;
 
 /**
  * Handles onboarding case and case document HTTP endpoints.
+ * Hello form Pedro
  */
 public class CasesHandler implements HttpHandler {
     private static final Logger logger = LoggerFactory.getLogger(CasesHandler.class);
