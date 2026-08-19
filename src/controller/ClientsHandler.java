@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import service.ClientService;
+import util.HttpResponseUtil;
 
 /**
  * Handles client-related HTTP endpoints.
@@ -27,6 +28,9 @@ public class ClientsHandler implements HttpHandler {
      */
     @Override
     public void handle(HttpExchange exchange) throws IOException {
+        if (HttpResponseUtil.handlePreflight(exchange)) {
+            return;
+        }
         String method = exchange.getRequestMethod();
         String path = exchange.getRequestURI().getPath();
         String query = exchange.getRequestURI().getQuery();
@@ -40,7 +44,7 @@ public class ClientsHandler implements HttpHandler {
                         try {
                             days = Integer.parseInt(query.substring(5));
                         } catch (NumberFormatException e) {
-                            KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid days parameter: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+                            HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid days parameter: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                             return;
                         }
                     }
@@ -49,25 +53,25 @@ public class ClientsHandler implements HttpHandler {
                     try {
                         handleGetClientById(exchange, Integer.parseInt(parts[3]));
                     } catch (NumberFormatException e) {
-                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid client ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+                        HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid client ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
                 } else if (parts.length == 3 && "clients".equals(parts[2])) {
                     handleListClients(exchange);
                 } else {
-                    KycApiServer.sendResponse(exchange, 404, "{\"error\":\"Invalid GET endpoint path\"}");
+                    HttpResponseUtil.sendResponse(exchange, 404, "{\"error\":\"Invalid GET endpoint path\"}");
                 }
             } else if ("POST".equalsIgnoreCase(method)) {
                 if (parts.length == 3 && "clients".equals(parts[2])) {
                     handleCreateClient(exchange);
                 } else {
-                    KycApiServer.sendResponse(exchange, 404, "{\"error\":\"Invalid POST endpoint path\"}");
+                    HttpResponseUtil.sendResponse(exchange, 404, "{\"error\":\"Invalid POST endpoint path\"}");
                 }
             } else {
-                KycApiServer.sendResponse(exchange, 405, "{\"error\":\"Method Not Allowed\"}");
+                HttpResponseUtil.sendResponse(exchange, 405, "{\"error\":\"Method Not Allowed\"}");
             }
         } catch (SQLException | RuntimeException e) {
             logger.error("Unhandled error processing {} {}", method, path, e);
-            KycApiServer.sendResponse(exchange, 500, "{\"error\":\"" + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+            HttpResponseUtil.sendResponse(exchange, 500, "{\"error\":\"" + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
         }
     }
 
@@ -81,7 +85,7 @@ public class ClientsHandler implements HttpHandler {
      */
     private void handleListExpiringDocuments(HttpExchange exchange, int days) throws IOException, SQLException {
         String json = clientService.listExpiringDocuments(days);
-        KycApiServer.sendResponse(exchange, 200, json);
+        HttpResponseUtil.sendResponse(exchange, 200, json);
     }
 
     /**
@@ -96,9 +100,9 @@ public class ClientsHandler implements HttpHandler {
         String json = clientService.getClientById(id);
         if (json == null) {
             logger.warn("Client lookup failed: clientId={} reason=not found", id);
-            KycApiServer.sendResponse(exchange, 404, "{\"error\":\"Client not found\"}");
+            HttpResponseUtil.sendResponse(exchange, 404, "{\"error\":\"Client not found\"}");
         } else {
-            KycApiServer.sendResponse(exchange, 200, json);
+            HttpResponseUtil.sendResponse(exchange, 200, json);
         }
     }
 
@@ -111,7 +115,7 @@ public class ClientsHandler implements HttpHandler {
      */
     private void handleListClients(HttpExchange exchange) throws IOException, SQLException {
         String json = clientService.listClients();
-        KycApiServer.sendResponse(exchange, 200, json);
+        HttpResponseUtil.sendResponse(exchange, 200, json);
     }
 
     /**
@@ -135,14 +139,14 @@ public class ClientsHandler implements HttpHandler {
 
         if (isBlank(fullName) || isBlank(clientType) || isBlank(nationality) || isBlank(countryOfBirth)
                 || isBlank(dateOfBirth) || isBlank(taxResidency) || isBlank(status) || isActive == null) {
-            KycApiServer.sendResponse(exchange, 400,
+            HttpResponseUtil.sendResponse(exchange, 400,
                     "{\"error\":\"Missing required fields: full_name, client_type, nationality, country_of_birth, date_of_birth, tax_residency, status, is_active\"}");
             return;
         }
 
         int newId = clientService.createClient(fullName, clientType, nationality, countryOfBirth, dateOfBirth,
                 taxResidency, status, isActive);
-        KycApiServer.sendResponse(exchange, 201, "{\"message\":\"Client created successfully\",\"client_id\":" + newId + "}");
+        HttpResponseUtil.sendResponse(exchange, 201, "{\"message\":\"Client created successfully\",\"client_id\":" + newId + "}");
     }
 
     /**

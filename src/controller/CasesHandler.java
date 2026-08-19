@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import repository.InvalidStateTransitionException;
 import service.CaseService;
+import util.HttpResponseUtil;
 
 /**
  * Handles onboarding case and case document HTTP endpoints.
@@ -28,6 +29,9 @@ public class CasesHandler implements HttpHandler {
      */
     @Override
     public void handle(HttpExchange exchange) throws IOException {
+        if (HttpResponseUtil.handlePreflight(exchange)) {
+            return;
+        }
         String method = exchange.getRequestMethod();
         String path = exchange.getRequestURI().getPath();
         String query = exchange.getRequestURI().getQuery();
@@ -39,12 +43,12 @@ public class CasesHandler implements HttpHandler {
                     try {
                         handleUploadDocument(exchange, Integer.parseInt(parts[4]));
                     } catch (NumberFormatException e) {
-                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+                        HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
                 } else if (parts.length == 4 && "cases".equals(parts[3])) {
                     handleCreateOnboardingCase(exchange);
                 } else {
-                    KycApiServer.sendResponse(exchange, 404, "{\"error\":\"Invalid POST endpoint path\"}");
+                    HttpResponseUtil.sendResponse(exchange, 404, "{\"error\":\"Invalid POST endpoint path\"}");
                 }
             } else if ("PATCH".equalsIgnoreCase(method)) {
                 if (parts.length == 6 && "status".equals(parts[5])) {
@@ -52,7 +56,7 @@ public class CasesHandler implements HttpHandler {
                         int caseId = Integer.parseInt(parts[4]);
                         handleUpdateCaseStatus(exchange, caseId);
                     } catch (NumberFormatException e) {
-                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+                        HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
                 } else if (parts.length == 8 && "documents".equals(parts[5]) && "verify".equals(parts[7])) {
                     try {
@@ -60,17 +64,17 @@ public class CasesHandler implements HttpHandler {
                         int docId = Integer.parseInt(parts[6]);
                         handleVerifyDocument(exchange, caseId, docId);
                     } catch (NumberFormatException e) {
-                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID or document ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+                        HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID or document ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
                 } else {
-                    KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid PATCH endpoint path\"}");
+                    HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid PATCH endpoint path\"}");
                 }
             } else if ("GET".equalsIgnoreCase(method)) {
                 if (parts.length == 5 && !parts[4].isEmpty()) {
                     try {
                         handleGetCaseById(exchange, Integer.parseInt(parts[4]));
                     } catch (NumberFormatException e) {
-                        KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+                        HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
                 } else if (parts.length == 4 && "cases".equals(parts[3])) {
                     String statusFilter = null;
@@ -79,17 +83,17 @@ public class CasesHandler implements HttpHandler {
                     }
                     handleListCases(exchange, statusFilter);
                 } else {
-                    KycApiServer.sendResponse(exchange, 404, "{\"error\":\"Invalid GET endpoint path\"}");
+                    HttpResponseUtil.sendResponse(exchange, 404, "{\"error\":\"Invalid GET endpoint path\"}");
                 }
             } else {
-                KycApiServer.sendResponse(exchange, 405, "{\"error\":\"Method Not Allowed\"}");
+                HttpResponseUtil.sendResponse(exchange, 405, "{\"error\":\"Method Not Allowed\"}");
             }
         } catch (InvalidStateTransitionException e) {
             logger.error("Case status update rejected: {}", e.getMessage());
-            KycApiServer.sendResponse(exchange, 409, "{\"error\":\"" + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+            HttpResponseUtil.sendResponse(exchange, 409, "{\"error\":\"" + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
         } catch (SQLException | RuntimeException e) {
             logger.error("Unhandled error processing {} {}", method, path, e);
-            KycApiServer.sendResponse(exchange, 500, "{\"error\":\"" + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+            HttpResponseUtil.sendResponse(exchange, 500, "{\"error\":\"" + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
         }
     }
 
@@ -105,12 +109,12 @@ public class CasesHandler implements HttpHandler {
         String body = readBody(exchange);
         Integer docTypeId = extractInt(body, "doc_type_id");
         if (docTypeId == null) {
-            KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Missing required field: doc_type_id\"}");
+            HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Missing required field: doc_type_id\"}");
             return;
         }
 
         int docId = caseService.uploadDocument(caseId, docTypeId);
-        KycApiServer.sendResponse(exchange, 201, "{\"message\":\"Document submitted successfully\",\"doc_id\":" + docId + "}");
+        HttpResponseUtil.sendResponse(exchange, 201, "{\"message\":\"Document submitted successfully\",\"doc_id\":" + docId + "}");
     }
 
     /**
@@ -127,13 +131,13 @@ public class CasesHandler implements HttpHandler {
         String caseStatus = extractString(body, "case_status");
 
         if (clientId == null || isBlank(productType) || isBlank(caseStatus)) {
-            KycApiServer.sendResponse(exchange, 400,
+            HttpResponseUtil.sendResponse(exchange, 400,
                     "{\"error\":\"Missing required fields: client_id, product_type, case_status\"}");
             return;
         }
 
         int newCaseId = caseService.createOnboardingCase(clientId, productType, caseStatus);
-        KycApiServer.sendResponse(exchange, 201, "{\"message\":\"Onboarding case opened successfully\",\"case_id\":" + newCaseId + "}");
+        HttpResponseUtil.sendResponse(exchange, 201, "{\"message\":\"Onboarding case opened successfully\",\"case_id\":" + newCaseId + "}");
     }
 
     /**
@@ -148,17 +152,17 @@ public class CasesHandler implements HttpHandler {
         String body = readBody(exchange);
         String newStatus = extractString(body, "case_status");
         if (newStatus == null || newStatus.isEmpty()) {
-            KycApiServer.sendResponse(exchange, 400, "{\"error\":\"Missing 'case_status' in request body\"}");
+            HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Missing 'case_status' in request body\"}");
             return;
         }
 
         boolean updated = caseService.updateCaseStatus(caseId, newStatus);
         if (updated) {
-            KycApiServer.sendResponse(exchange, 200, "{\"message\":\"Case status updated successfully\",\"case_id\":" + caseId
+            HttpResponseUtil.sendResponse(exchange, 200, "{\"message\":\"Case status updated successfully\",\"case_id\":" + caseId
                     + ",\"case_status\":\"" + repository.DatabaseConnection.escape(newStatus) + "\"}");
         } else {
             logger.warn("Case status update failed: caseId={} reason=case not found", caseId);
-            KycApiServer.sendResponse(exchange, 404, "{\"error\":\"Case not found\"}");
+            HttpResponseUtil.sendResponse(exchange, 404, "{\"error\":\"Case not found\"}");
         }
     }
 
@@ -174,9 +178,9 @@ public class CasesHandler implements HttpHandler {
     private void handleVerifyDocument(HttpExchange exchange, int caseId, int docId) throws IOException, SQLException {
         boolean verified = caseService.verifyDocument(caseId, docId);
         if (verified) {
-            KycApiServer.sendResponse(exchange, 200, "{\"message\":\"Document verified successfully\",\"doc_id\":" + docId + "}");
+            HttpResponseUtil.sendResponse(exchange, 200, "{\"message\":\"Document verified successfully\",\"doc_id\":" + docId + "}");
         } else {
-            KycApiServer.sendResponse(exchange, 404, "{\"error\":\"Document not found or does not match the case\"}");
+            HttpResponseUtil.sendResponse(exchange, 404, "{\"error\":\"Document not found or does not match the case\"}");
         }
     }
 
@@ -190,7 +194,7 @@ public class CasesHandler implements HttpHandler {
      */
     private void handleListCases(HttpExchange exchange, String statusFilter) throws IOException, SQLException {
         String json = caseService.listCases(statusFilter);
-        KycApiServer.sendResponse(exchange, 200, json);
+        HttpResponseUtil.sendResponse(exchange, 200, json);
     }
 
     /**
@@ -205,9 +209,9 @@ public class CasesHandler implements HttpHandler {
         String json = caseService.getCaseById(id);
         if (json == null) {
             logger.warn("Case lookup failed: caseId={} reason=not found", id);
-            KycApiServer.sendResponse(exchange, 404, "{\"error\":\"Case not found\"}");
+            HttpResponseUtil.sendResponse(exchange, 404, "{\"error\":\"Case not found\"}");
         } else {
-            KycApiServer.sendResponse(exchange, 200, json);
+            HttpResponseUtil.sendResponse(exchange, 200, json);
         }
     }
 

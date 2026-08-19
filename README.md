@@ -25,7 +25,8 @@ PROJECT-KYC/
 │   │   ├── logback-core-1.5.6.jar      # Logback core
 │   │   └── logback-classic-1.5.6.jar   # Logback SLF4J implementation
 │   ├── logback.xml                  # Logging configuration
-│   └── controller/KycApiServer.java # Lightweight HTTP server (Java Relay API)
+│   ├── KycApiServer.java            # Lightweight HTTP server (Java Relay API)
+│   └── util/HttpResponseUtil.java   # Shared HTTP response helper
 ├── 01_seed_data.sql                 # Test data (10 clients)
 ├── create_database.sql              # Database creation (kyc_db)
 ├── ddl_schema.sql                   # Tables, keys, and relationships
@@ -115,7 +116,7 @@ cd src
 
 2. Compile the Java server with all dependency jars on the classpath:
 ```bash
-javac -cp "lib/*" -d out $(find controller repository service -name "*.java")
+javac -cp "lib/*" -d out $(find . -maxdepth 1 -name "*.java") $(find controller repository service util -name "*.java")
 
 ```
 
@@ -123,14 +124,14 @@ javac -cp "lib/*" -d out $(find controller repository service -name "*.java")
 3. Run the API server (the working directory must contain `logback.xml`):
 * **In Windows environment (Git Bash):**
 ```bash
-java -cp "out;.;lib/*" controller.KycApiServer
+java -cp "out;.;lib/*" KycApiServer
 
 ```
 
 
 * **In Linux / macOS environment:**
 ```bash
-java -cp "out:.:lib/*" controller.KycApiServer
+java -cp "out:.:lib/*" KycApiServer
 
 ```
 
@@ -138,7 +139,37 @@ java -cp "out:.:lib/*" controller.KycApiServer
 
 ---
 
-### 4. Running Tests
+### 4. Frontend (React) Setup and Execution
+
+The frontend is a Vite + React app in `frontend/` that talks to the Java API server above (default `http://localhost:8080`). Start the API server first, then run the frontend:
+
+1. Install dependencies (first time only):
+```bash
+cd frontend
+npm install
+```
+
+2. Start the dev server:
+```bash
+npm run dev
+```
+The app is served at `http://localhost:5173`.
+
+> **Windows PowerShell note:** if `npm run dev` fails because script execution is disabled, use `npm.cmd run dev` instead of `npm run dev`.
+
+By default the frontend calls the API at `http://localhost:8080`. To point it at a different host/port, set `VITE_API_BASE_URL` before starting the dev server, e.g.:
+```bash
+VITE_API_BASE_URL=http://localhost:9090 npm run dev
+```
+
+3. Build for production:
+```bash
+npm run build
+```
+
+---
+
+### 5. Running Tests
 
 Unit and mock tests (JUnit 5 + Mockito) live in `test/`, mirroring the `src/` package structure. There's no Maven/Gradle — dependencies are plain jars and tests run via the JUnit console launcher.
 
@@ -156,7 +187,7 @@ This compiles `src/` into `src/out`, compiles `test/` into `testout`, then runs 
 
 ---
 
-### 5. API Documentation, Health Check, and Scheduled Job
+### 6. API Documentation, Health Check, and Scheduled Job
 
 * **OpenAPI spec** — `src/openapi.yaml` documents every endpoint below. Once the server is running, fetch it live at `http://localhost:8080/openapi.yaml` and paste it into [Swagger Editor](https://editor.swagger.io) or a local Swagger UI to explore/try the API.
 * **Health / readiness check** — `GET http://localhost:8080/health` checks database connectivity and returns `200 {"status":"UP","database":"UP"}` when the service can accept traffic, or `503 {"status":"DOWN", ...}` when the database is unreachable.
@@ -164,7 +195,7 @@ This compiles `src/` into `src/out`, compiles `test/` into `testout`, then runs 
 
 ---
 
-### 6. Calling the API (curl examples)
+### 7. Calling the API (curl examples)
 
 Full request/response reference for every endpoint (with sample JSON) is in [API_DOCUMENTATION.md](API_DOCUMENTATION.md). A few quick examples:
 

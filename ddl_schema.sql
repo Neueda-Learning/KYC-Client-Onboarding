@@ -6,6 +6,7 @@ DROP TABLE IF EXISTS `document`;
 DROP TABLE IF EXISTS `onboarding_case`;
 DROP TABLE IF EXISTS `client_address`;
 DROP TABLE IF EXISTS `compliance_officer`;
+DROP TABLE IF EXISTS `admin_officer`;
 DROP TABLE IF EXISTS `document_type`;
 DROP TABLE IF EXISTS `client`;
 SET FOREIGN_KEY_CHECKS = 1;
@@ -14,7 +15,18 @@ CREATE TABLE `compliance_officer` (
   `officer_id` integer PRIMARY KEY AUTO_INCREMENT,
   `full_name` varchar(255),
   `email` varchar(255),
-  `password` varchar(255)
+  `username` varchar(100) UNIQUE,
+  `password_hash` varchar(255) COMMENT 'PBKDF2-HMAC-SHA256 salted hash, see util.PasswordHasher'
+);
+
+-- Admin compliance officers are a distinct login/entity from regular compliance_officer
+-- rows: they do not hold onboarding cases themselves, but can view and assign every case.
+CREATE TABLE `admin_officer` (
+  `admin_id` integer PRIMARY KEY AUTO_INCREMENT,
+  `full_name` varchar(255) NOT NULL,
+  `email` varchar(255),
+  `username` varchar(100) NOT NULL UNIQUE,
+  `password_hash` varchar(255) NOT NULL COMMENT 'PBKDF2-HMAC-SHA256 salted hash, see util.PasswordHasher'
 );
 
 CREATE TABLE `document_type` (
@@ -39,7 +51,9 @@ CREATE TABLE `client` (
   `main_source_of_funds` varchar(80),
   `annual_income_band` varchar(80) COMMENT '<25K / 25-50K  / 50-100K / 100-250K / 250K+',
   `status` varchar(255) COMMENT 'PENDING / ACTIVE / SUSPENDED / REJECTED',
-  `is_active` boolean NOT NULL DEFAULT TRUE
+  `is_active` boolean NOT NULL DEFAULT TRUE,
+  `username` varchar(100) UNIQUE,
+  `password_hash` varchar(255) COMMENT 'PBKDF2-HMAC-SHA256 salted hash, see util.PasswordHasher'
 );
 
 CREATE INDEX idx_client_status ON client (status);

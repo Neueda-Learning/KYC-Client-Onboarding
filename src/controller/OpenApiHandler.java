@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import util.HttpResponseUtil;
 
 /**
  * Serves the static OpenAPI specification describing all API endpoints.
@@ -26,13 +27,13 @@ public class OpenApiHandler implements HttpHandler {
     public void handle(HttpExchange exchange) throws IOException {
         if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
             logger.warn("OpenAPI spec request rejected: method={} not allowed", exchange.getRequestMethod());
-            KycApiServer.sendResponse(exchange, 405, "{\"error\":\"Method Not Allowed\"}");
+            HttpResponseUtil.sendResponse(exchange, 405, "{\"error\":\"Method Not Allowed\"}");
             return;
         }
 
         if (!Files.exists(SPEC_PATH)) {
             logger.error("OpenAPI spec not found at {}", SPEC_PATH.toAbsolutePath());
-            KycApiServer.sendResponse(exchange, 500, "{\"error\":\"OpenAPI spec not found\"}");
+            HttpResponseUtil.sendResponse(exchange, 500, "{\"error\":\"OpenAPI spec not found\"}");
             return;
         }
 
