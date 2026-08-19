@@ -50,8 +50,14 @@ public final class PasswordHasher {
                 return false;
             }
             int iterations = Integer.parseInt(parts[1]);
+            if (iterations < 50_000 || iterations > 500_000) {
+                return false;
+            }
             byte[] salt = Base64.getDecoder().decode(parts[2]);
             byte[] expectedHash = Base64.getDecoder().decode(parts[3]);
+            if (salt.length != SALT_LENGTH_BYTES || expectedHash.length != (KEY_LENGTH_BITS / 8)) {
+                return false;
+            }
             byte[] actualHash = pbkdf2(plainTextPassword.toCharArray(), salt, iterations);
             return constantTimeEquals(expectedHash, actualHash);
         } catch (RuntimeException e) {
