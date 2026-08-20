@@ -3,6 +3,27 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/api';
 
+const PENDING_STATUSES = ['AWAITING_DOCUMENTS', 'IN_REVIEW'];
+const CLOSED_STATUSES = ['APPROVED', 'REJECTED', 'CLOSED'];
+const DUE_SOON_DAYS = 30;
+
+function statusRowClass(status) {
+  if (status === 'OPEN') return 'row-open';
+  if (PENDING_STATUSES.includes(status)) return 'row-pending';
+  if (CLOSED_STATUSES.includes(status)) return 'row-closed';
+  return '';
+}
+
+function dueDateClass(dueDate, status) {
+  if (!dueDate || CLOSED_STATUSES.includes(status)) return '';
+  const daysLeft = Math.ceil((new Date(dueDate) - new Date()) / (1000 * 60 * 60 * 24));
+  return daysLeft <= DUE_SOON_DAYS ? 'due-date-soon' : '';
+}
+
+function dateOnly(value) {
+  return value ? value.split(/[ T]/)[0] : '—';
+}
+
 export default function OfficerHomePage() {
   const { user } = useAuth();
   const [cases, setCases] = useState([]);
@@ -44,13 +65,14 @@ export default function OfficerHomePage() {
               <th>Client</th>
               <th>Product</th>
               <th>Status</th>
-              <th>Opened</th>
+              <th>Due Date</th>
+              <th>Case Opened</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {cases.map((c) => (
-              <tr key={c.case_id}>
+              <tr key={c.case_id} className={statusRowClass(c.case_status)}>
                 <td>{c.case_id}</td>
                 <td className="client-name">{c.client_name}</td>
                 <td>{c.product_type}</td>
@@ -59,7 +81,8 @@ export default function OfficerHomePage() {
                     {c.case_status}
                   </span>
                 </td>
-                <td>{c.opened_date}</td>
+                <td className={dueDateClass(c.due_date, c.case_status)}>{c.due_date || '—'}</td>
+                <td>{dateOnly(c.opened_date)}</td>
                 <td>
                   <Link to={`/cases/${c.case_id}`} className="view-case-button">View</Link>
                 </td>

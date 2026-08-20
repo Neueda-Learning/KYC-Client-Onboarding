@@ -43,4 +43,15 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ officer_id: officerId }),
     }),
+  updateRiskClassification: (caseId, riskLevel, rationale, officerId) =>
+    request(`/api/onboarding/cases/${caseId}/risk-classification`, {
+      method: 'PATCH',
+      body: JSON.stringify({ risk_level: riskLevel, rationale, officer_id: officerId }),
+    }),
+      getDocumentTypes: () => request('/api/document-types'),
+  submitDocument: (caseId, docTypeId) =>
+    request(`/api/onboarding/cases/${caseId}/documents`, {
+      method: 'POST',
+      body: JSON.stringify({ doc_type_id: docTypeId }),
+    }),
 };
