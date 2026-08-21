@@ -6,11 +6,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Data access layer for case risk classification entries.
  */
 public class RiskClassificationRepository {
+    private static final Logger logger = LoggerFactory.getLogger(RiskClassificationRepository.class);
 
     /**
      * Inserts a new risk classification entry for a case.
@@ -41,7 +44,10 @@ public class RiskClassificationRepository {
             ps.executeUpdate();
             try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
                 if (generatedKeys.next()) {
-                    return generatedKeys.getInt(1);
+                    int classificationId = generatedKeys.getInt(1);
+                    logger.info("Risk classification recorded: caseId={} classificationId={} riskLevel={} assessedBy={}",
+                            caseId, classificationId, riskLevel, assessedBy);
+                    return classificationId;
                 }
             }
         }
@@ -65,6 +71,7 @@ public class RiskClassificationRepository {
             ps.setInt(1, caseId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
+                    logger.debug("No risk classification found: caseId={}", caseId);
                     return null;
                 }
                 int assessedBy = rs.getInt("assessed_by");

@@ -6,11 +6,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Data access layer for document type lookups.
  */
 public class DocumentTypeRepository {
+    private static final Logger logger = LoggerFactory.getLogger(DocumentTypeRepository.class);
 
     /**
      * Lists all known document types.
@@ -31,6 +34,7 @@ public class DocumentTypeRepository {
                         + "}");
             }
         }
+        logger.debug("Fetched document types: count={}", list.size());
         return list;
     }
 }

@@ -16,6 +16,12 @@ public class DocumentTypesHandler implements HttpHandler {
     private static final Logger logger = LoggerFactory.getLogger(DocumentTypesHandler.class);
     private final DocumentTypeService documentTypeService = new DocumentTypeService();
 
+    /**
+     * Dispatches requests for /api/document-types routes.
+     *
+     * @param exchange current HTTP exchange
+     * @throws IOException when response writing fails
+     */
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         if (HttpResponseUtil.handlePreflight(exchange)) {
@@ -27,7 +33,9 @@ public class DocumentTypesHandler implements HttpHandler {
             return;
         }
         try {
-            HttpResponseUtil.sendResponse(exchange, 200, documentTypeService.listDocumentTypes());
+            String json = documentTypeService.listDocumentTypes();
+            logger.info("Document types listed successfully");
+            HttpResponseUtil.sendResponse(exchange, 200, json);
         } catch (SQLException | RuntimeException e) {
             logger.error("Unhandled error processing {} {}", method, exchange.getRequestURI().getPath(), e);
             HttpResponseUtil.sendResponse(exchange, 500, "{\"error\":\"" + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");

@@ -4,12 +4,15 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Data access layer for login credential lookups across client, compliance_officer
  * and admin_officer tables.
  */
 public class AuthRepository {
+    private static final Logger logger = LoggerFactory.getLogger(AuthRepository.class);
 
     /**
      * A credential row looked up by username, independent of which table it came from.
@@ -68,8 +71,10 @@ public class AuthRepository {
             ps.setString(1, username);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
+                    logger.debug("Credential lookup miss: table={} username={}", table, username);
                     return null;
                 }
+                logger.debug("Credential lookup hit: table={} username={}", table, username);
                 return new Credential(rs.getInt(idColumn), rs.getString("full_name"),
                         rs.getString("username"), rs.getString("password_hash"));
             }

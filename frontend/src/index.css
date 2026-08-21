@@ -457,6 +457,64 @@ th {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
+.modal-wide {
+  max-width: 760px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.form-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+}
+
+.form-section legend {
+  font-weight: 600;
+  color: var(--accent-dark);
+  padding: 0 6px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0 16px;
+}
+
+.checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.checklist-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-weight: normal;
+}
+
+.open-case-button {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.open-case-button:hover {
+  background: var(--accent-dark);
+}
+
 .modal h2 {
   border-left: none;
   padding-left: 0;
@@ -642,4 +700,109 @@ button[type="submit"]:hover {
   font-size: 12px;
   color: #94a3b8;
   margin-top: 16px;
+}
+
+/* Responsive layout ------------------------------------------------------ */
+
+@media (max-width: 900px) {
+  .page {
+    padding: 16px;
+  }
+
+  h1 {
+    font-size: 24px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-wide {
+    max-width: 92vw;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-grid dt {
+    margin-top: 8px;
+  }
+}
+
+@media (max-width: 640px) {
+  .navbar {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 16px;
+  }
+
+  .navbar-user {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .page {
+    padding: 12px;
+  }
+
+  h1 {
+    font-size: 20px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  /* Tables scroll horizontally instead of squeezing columns unreadably. */
+  .cases-table,
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .case-filters {
+    gap: 12px;
+    padding: 10px 12px;
+  }
+
+  .filter-group {
+    width: 100%;
+  }
+
+  .modal {
+    max-width: 100%;
+    width: 92vw;
+    padding: 18px;
+  }
+
+  .modal-wide {
+    max-width: 100%;
+    width: 96vw;
+    max-height: 95vh;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions button {
+    width: 100%;
+  }
+
+  .checklist {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .login-card {
+    padding: 24px 20px;
+  }
+
+  .login-page {
+    padding: 12px;
+  }
 }

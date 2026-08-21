@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/api';
 import AssignOfficerModal from '../components/AssignOfficerModal';
+import OpenCaseModal from '../components/OpenCaseModal';
 import CaseFilters, { matchesDueDateFilter, sortCasesByDueDate } from '../components/CaseFilters';
 
 const PENDING_STATUSES = ['AWAITING_DOCUMENTS', 'IN_REVIEW'];
@@ -31,6 +32,7 @@ export default function AdminHomePage() {
   const [selectedStatuses, setSelectedStatuses] = useState([]);
   const [dueDateFilter, setDueDateFilter] = useState('all');
   const [dueDateSort, setDueDateSort] = useState('none');
+  const [showOpenCaseModal, setShowOpenCaseModal] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +74,10 @@ export default function AdminHomePage() {
     );
   };
 
+  const handleCaseOpened = () => {
+    api.getCases().then(setCases).catch((err) => setError(err.message));
+  };
+
   const visibleCases = useMemo(
     () =>
       sortCasesByDueDate(
@@ -92,6 +98,10 @@ export default function AdminHomePage() {
     <div className="page">
       <h1>All Cases</h1>
       {assignError && <p className="error">{assignError}</p>}
+
+      <button type="button" className="open-case-button" onClick={() => setShowOpenCaseModal(true)}>
+        + Open a New Case
+      </button>
 
       <CaseFilters
         selectedStatuses={selectedStatuses}
@@ -150,6 +160,14 @@ export default function AdminHomePage() {
           officers={officers}
           onClose={() => setActiveCase(null)}
           onAssigned={handleAssignOfficer}
+        />
+      )}
+
+      {showOpenCaseModal && (
+        <OpenCaseModal
+          officers={officers}
+          onClose={() => setShowOpenCaseModal(false)}
+          onOpened={handleCaseOpened}
         />
       )}
     </div>

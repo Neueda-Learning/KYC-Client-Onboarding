@@ -2,11 +2,14 @@ package service;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Determines whether a document's expiry date falls within a lookahead threshold.
  */
 public class DocumentExpiryService {
+    private static final Logger logger = LoggerFactory.getLogger(DocumentExpiryService.class);
 
     /**
      * Checks whether a document is expiring within the given threshold window.
@@ -22,6 +25,11 @@ public class DocumentExpiryService {
             throw new IllegalArgumentException("expiryDate and today must not be null");
         }
         long daysUntilExpiry = ChronoUnit.DAYS.between(today, expiryDate);
-        return daysUntilExpiry >= 0 && daysUntilExpiry <= thresholdDays;
+        boolean expiring = daysUntilExpiry >= 0 && daysUntilExpiry <= thresholdDays;
+        if (expiring) {
+            logger.debug("Document expiring within threshold: expiryDate={} today={} thresholdDays={} daysUntilExpiry={}",
+                    expiryDate, today, thresholdDays, daysUntilExpiry);
+        }
+        return expiring;
     }
 }

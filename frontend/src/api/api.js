@@ -54,4 +54,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ doc_type_id: docTypeId }),
     }),
+  openCase: (payload) =>
+    request('/api/onboarding/cases/open', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 };

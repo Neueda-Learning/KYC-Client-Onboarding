@@ -9,6 +9,8 @@ tags:
   - name: Auth
   - name: Clients
   - name: Onboarding Cases
+  - name: Officers
+  - name: Document Types
   - name: System
 
 paths:
@@ -164,6 +166,58 @@ paths:
         "201": { description: Case created }
         "400": { description: Missing required fields }
 
+  /api/onboarding/cases/open:
+    post:
+      tags: [Onboarding Cases]
+      summary: Open a new onboarding case together with a new client, address, initial documents, and optional officer assignment
+      description: >
+        Also automatically provisions the client's login: a username derived from
+        full_name (lowercased, spaces replaced with dots) and a randomly generated
+        temporary password. Only the password's hash is stored; delivery of the
+        credentials to the client is currently a logging stub (see NotificationService).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client, address, product_type]
+              properties:
+                client:
+                  type: object
+                  required: [full_name, client_type, nationality, date_of_birth, country_of_birth, tax_residency]
+                  properties:
+                    full_name: { type: string }
+                    client_type: { type: string, enum: [INDIVIDUAL, CORPORATE, TRUST, POLITICAL] }
+                    nationality: { type: string }
+                    date_of_birth: { type: string, format: date }
+                    country_of_birth: { type: string }
+                    tax_residency: { type: string }
+                    occupation: { type: string }
+                    employer: { type: string }
+                    main_source_of_funds: { type: string }
+                    annual_income_band: { type: string }
+                address:
+                  type: object
+                  required: [line1, city, country]
+                  properties:
+                    address_type: { type: string, enum: [REGISTERED, MAILING] }
+                    line1: { type: string }
+                    line2: { type: string }
+                    city: { type: string }
+                    state: { type: string }
+                    postcode: { type: string }
+                    country: { type: string }
+                product_type: { type: string }
+                due_date: { type: string, format: date }
+                officer_id: { type: integer, nullable: true }
+                document_type_ids:
+                  type: array
+                  items: { type: integer }
+      responses:
+        "201": { description: Case, client, and address created; case_id and client_id returned }
+        "400": { description: Missing required fields }
+
   /api/onboarding/cases/{id}:
     get:
       tags: [Onboarding Cases]
@@ -238,3 +292,105 @@ paths:
       responses:
         "200": { description: Document verified }
         "404": { description: Document not found or does not match the case }
+
+  /api/onboarding/cases/{id}/officer:
+    patch:
+      tags: [Onboarding Cases]
+      summary: Assign or unassign the compliance officer handling a case
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [officer_id]
+              properties:
+                officer_id: { type: integer, nullable: true, description: Officer to assign, or null to unassign }
+      responses:
+        "200":
+          description: Officer assigned/unassigned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  case_id: { type: integer }
+                  assigned_officer_id: { type: integer, nullable: true }
+                  officer_name: { type: string, nullable: true }
+        "404": { description: Case not found }
+
+  /api/onboarding/cases/{id}/risk-classification:
+    patch:
+      tags: [Onboarding Cases]
+      summary: Record a new risk classification for a case
+      description: >
+        Derives the next review date from the risk level (90/180/365 days out).
+        A risk classification must exist before a case can be moved to
+        APPROVED or REJECTED.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [risk_level, rationale]
+              properties:
+                risk_level: { type: string, enum: [LOW, MEDIUM, HIGH] }
+                rationale: { type: string }
+                officer_id: { type: integer, nullable: true }
+      responses:
+        "200":
+          description: Risk classification recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  case_id: { type: integer }
+        "400": { description: Missing required fields or invalid risk_level }
+
+  /api/officers:
+    get:
+      tags: [Officers]
+      summary: List all compliance officers
+      responses:
+        "200":
+          description: Array of officers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    officer_id: { type: integer }
+                    full_name: { type: string }
+
+  /api/document-types:
+    get:
+      tags: [Document Types]
+      summary: List all known document types
+      responses:
+        "200":
+          description: Array of document types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    doc_type_id: { type: integer }
+                    doc_type_name: { type: string }

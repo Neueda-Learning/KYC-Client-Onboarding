@@ -41,7 +41,9 @@ public class ClientRepository {
             ps.executeUpdate();
             try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
                 if (generatedKeys.next()) {
-                    return generatedKeys.getInt(1);
+                    int clientId = generatedKeys.getInt(1);
+                    logger.info("Client created: clientId={} clientType={} status={}", clientId, clientType, status);
+                    return clientId;
                 }
             }
         }
@@ -132,6 +134,7 @@ public class ClientRepository {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
+                    logger.debug("Client not found: clientId={}", id);
                     return null;
                 }
                 return "{"
