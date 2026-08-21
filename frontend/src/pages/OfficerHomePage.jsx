@@ -25,6 +25,27 @@ function dateOnly(value) {
   return value ? value.split(/[ T]/)[0] : '—';
 }
 
+const PENDING_STATUSES = ['AWAITING_DOCUMENTS', 'IN_REVIEW'];
+const CLOSED_STATUSES = ['APPROVED', 'REJECTED', 'CLOSED'];
+const DUE_SOON_DAYS = 30;
+
+function statusRowClass(status) {
+  if (status === 'OPEN') return 'row-open';
+  if (PENDING_STATUSES.includes(status)) return 'row-pending';
+  if (CLOSED_STATUSES.includes(status)) return 'row-closed';
+  return '';
+}
+
+function dueDateClass(dueDate, status) {
+  if (!dueDate || CLOSED_STATUSES.includes(status)) return '';
+  const daysLeft = Math.ceil((new Date(dueDate) - new Date()) / (1000 * 60 * 60 * 24));
+  return daysLeft <= DUE_SOON_DAYS ? 'due-date-soon' : '';
+}
+
+function dateOnly(value) {
+  return value ? value.split(/[ T]/)[0] : '—';
+}
+
 export default function OfficerHomePage() {
   const { user } = useAuth();
   const [cases, setCases] = useState([]);
