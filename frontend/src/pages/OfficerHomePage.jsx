@@ -95,6 +95,8 @@ export default function OfficerHomePage() {
               <th>Status</th>
               <th>Due Date</th>
               <th>Case Opened</th>
+              <th>Due Date</th>
+              <th>Case Opened</th>
               <th></th>
             </tr>
           </thead>
@@ -114,6 +116,8 @@ export default function OfficerHomePage() {
                     {c.case_status}
                   </span>
                 </td>
+                <td className={dueDateClass(c.due_date, c.case_status)}>{c.due_date || '—'}</td>
+                <td>{dateOnly(c.opened_date)}</td>
                 <td className={dueDateClass(c.due_date, c.case_status)}>{c.due_date || '—'}</td>
                 <td>{dateOnly(c.opened_date)}</td>
                 <td>
