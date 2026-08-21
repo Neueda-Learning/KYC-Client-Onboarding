@@ -33,7 +33,9 @@ public class OfficersHandler implements HttpHandler {
             return;
         }
         try {
-            HttpResponseUtil.sendResponse(exchange, 200, officerService.listOfficers());
+            String json = officerService.listOfficers();
+            logger.info("Officers listed successfully");
+            HttpResponseUtil.sendResponse(exchange, 200, json);
         } catch (SQLException | RuntimeException e) {
             logger.error("Unhandled error processing {} {}", method, exchange.getRequestURI().getPath(), e);
             HttpResponseUtil.sendResponse(exchange, 500, "{\"error\":\"" + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");

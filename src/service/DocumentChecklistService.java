@@ -2,11 +2,14 @@ package service;
 
 import java.util.List;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Determines which document types are required for a checklist based on client type.
  */
 public class DocumentChecklistService {
+    private static final Logger logger = LoggerFactory.getLogger(DocumentChecklistService.class);
 
     private static final List<String> INDIVIDUAL_REQUIRED_DOCS = List.of(
             "PASSPORT",
@@ -41,6 +44,7 @@ public class DocumentChecklistService {
             case "CORPORATE":
                 return CORPORATE_REQUIRED_DOCS;
             default:
+                logger.warn("Checklist lookup rejected: clientType={} reason=unsupported client type", clientType);
                 throw new IllegalArgumentException("Unsupported client type: " + clientType);
         }
     }
@@ -65,8 +69,11 @@ public class DocumentChecklistService {
      */
     public boolean isChecklistComplete(String clientType, Set<String> submittedDocumentTypes) {
         if (submittedDocumentTypes == null) {
+            logger.debug("Checklist incomplete: clientType={} reason=no documents submitted", clientType);
             return false;
         }
-        return submittedDocumentTypes.containsAll(getRequiredDocuments(clientType));
+        boolean complete = submittedDocumentTypes.containsAll(getRequiredDocuments(clientType));
+        logger.debug("Checklist evaluated: clientType={} complete={}", clientType, complete);
+        return complete;
     }
 }

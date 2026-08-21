@@ -6,11 +6,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Data access layer for compliance officer lookups.
  */
 public class OfficerRepository {
+    private static final Logger logger = LoggerFactory.getLogger(OfficerRepository.class);
 
     /**
      * Lists all compliance officers available for case assignment.
@@ -31,6 +34,7 @@ public class OfficerRepository {
                         + "}");
             }
         }
+        logger.debug("Fetched compliance officers: count={}", list.size());
         return list;
     }
 
@@ -47,7 +51,11 @@ public class OfficerRepository {
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, officerId);
             try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? rs.getString("full_name") : null;
+                if (!rs.next()) {
+                    logger.warn("Officer name lookup failed: officerId={} reason=not found", officerId);
+                    return null;
+                }
+                return rs.getString("full_name");
             }
         }
     }

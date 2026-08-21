@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/api';
 import AssignOfficerModal from '../components/AssignOfficerModal';
+import OpenCaseModal from '../components/OpenCaseModal';
+import CaseFilters, { matchesDueDateFilter, sortCasesByDueDate } from '../components/CaseFilters';
 
 const PENDING_STATUSES = ['AWAITING_DOCUMENTS', 'IN_REVIEW'];
 const CLOSED_STATUSES = ['APPROVED', 'REJECTED'];
@@ -27,6 +29,10 @@ export default function AdminHomePage() {
   const [loading, setLoading] = useState(true);
   const [assignError, setAssignError] = useState(null);
   const [activeCase, setActiveCase] = useState(null);
+  const [selectedStatuses, setSelectedStatuses] = useState([]);
+  const [dueDateFilter, setDueDateFilter] = useState('all');
+  const [dueDateSort, setDueDateSort] = useState('none');
+  const [showOpenCaseModal, setShowOpenCaseModal] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +68,29 @@ export default function AdminHomePage() {
     }
   };
 
+  const toggleStatus = (status) => {
+    setSelectedStatuses((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+    );
+  };
+
+  const handleCaseOpened = () => {
+    api.getCases().then(setCases).catch((err) => setError(err.message));
+  };
+
+  const visibleCases = useMemo(
+    () =>
+      sortCasesByDueDate(
+        cases.filter(
+          (c) =>
+            (selectedStatuses.length === 0 || selectedStatuses.includes(c.case_status)) &&
+            matchesDueDateFilter(c.due_date, dueDateFilter)
+        ),
+        dueDateSort
+      ),
+    [cases, selectedStatuses, dueDateFilter, dueDateSort]
+  );
+
   if (loading) return <div className="page">Loading all cases...</div>;
   if (error) return <div className="page error">Error: {error}</div>;
 
@@ -69,6 +98,19 @@ export default function AdminHomePage() {
     <div className="page">
       <h1>All Cases</h1>
       {assignError && <p className="error">{assignError}</p>}
+
+      <button type="button" className="open-case-button" onClick={() => setShowOpenCaseModal(true)}>
+        + Open a New Case
+      </button>
+
+      <CaseFilters
+        selectedStatuses={selectedStatuses}
+        onToggleStatus={toggleStatus}
+        dueDateFilter={dueDateFilter}
+        onDueDateFilterChange={setDueDateFilter}
+        dueDateSort={dueDateSort}
+        onDueDateSortChange={setDueDateSort}
+      />
 
       <table className="cases-table">
         <thead>
@@ -83,7 +125,12 @@ export default function AdminHomePage() {
           </tr>
         </thead>
         <tbody>
-          {cases.map((c) => (
+          {visibleCases.length === 0 && (
+            <tr>
+              <td colSpan={7}>No cases match the selected filters.</td>
+            </tr>
+          )}
+          {visibleCases.map((c) => (
             <tr key={c.case_id} className={statusRowClass(c.case_status)}>
               <td>{c.case_id}</td>
               <td className="client-name">{c.client_name}</td>
@@ -113,6 +160,14 @@ export default function AdminHomePage() {
           officers={officers}
           onClose={() => setActiveCase(null)}
           onAssigned={handleAssignOfficer}
+        />
+      )}
+
+      {showOpenCaseModal && (
+        <OpenCaseModal
+          officers={officers}
+          onClose={() => setShowOpenCaseModal(false)}
+          onOpened={handleCaseOpened}
         />
       )}
     </div>

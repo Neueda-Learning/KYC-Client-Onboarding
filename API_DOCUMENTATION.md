@@ -201,6 +201,46 @@ curl -X POST http://localhost:8080/api/onboarding/cases \
 {"message":"Onboarding case opened successfully","case_id":12}
 ```
 
+### `POST /api/onboarding/cases/open`
+
+Creates a new client, address, and onboarding case in one atomic operation, optionally
+recording documents already provided and assigning a compliance officer. Also
+automatically provisions the client's login: a username derived from `full_name`
+(lowercased, spaces replaced with dots, e.g. `"Jane Doe"` -> `jane.doe`) and a
+randomly generated temporary password. Only the password's PBKDF2 hash is stored;
+delivery of the credentials to the client is currently a logging stub
+(`service.NotificationService`) pending a real email/SMS integration.
+
+```bash
+curl -X POST http://localhost:8080/api/onboarding/cases/open \
+  -H "Content-Type: application/json" \
+  -d '{
+        "client": {
+          "full_name": "Jane Doe",
+          "client_type": "INDIVIDUAL",
+          "nationality": "GB",
+          "date_of_birth": "1990-01-01",
+          "country_of_birth": "GB",
+          "tax_residency": "GB"
+        },
+        "address": {
+          "address_type": "REGISTERED",
+          "line1": "1 Example Street",
+          "city": "London",
+          "country": "GB",
+          "postcode": "SW1A 1AA"
+        },
+        "product_type": "CURRENT_ACCOUNT",
+        "due_date": "2026-09-01",
+        "officer_id": 2,
+        "document_type_ids": [1, 4]
+      }'
+```
+
+```json
+{"message":"Case opened successfully","case_id":13,"client_id":16}
+```
+
 ### `PATCH /api/onboarding/cases/{id}/status`
 
 ```bash
@@ -244,3 +284,78 @@ Not found:
 ```json
 {"error":"Document not found or does not match the case"}
 ```
+
+### `PATCH /api/onboarding/cases/{id}/officer`
+
+Assigns (or unassigns, when `officer_id` is `null`) the compliance officer handling a case.
+
+```bash
+curl -X PATCH http://localhost:8080/api/onboarding/cases/1/officer \
+  -H "Content-Type: application/json" \
+  -d '{"officer_id": 2}'
+```
+
+```json
+{"message":"Case officer assigned successfully","case_id":1,"assigned_officer_id":2,"officer_name":"Grace Whitman"}
+```
+
+Not found, `404`:
+```json
+{"error":"Case not found"}
+```
+
+### `PATCH /api/onboarding/cases/{id}/risk-classification`
+
+Records a new risk classification for a case. The next review date is derived from the
+risk level (90/180/365 days out for LOW/MEDIUM/HIGH respectively). A risk classification
+must exist before a case can be moved to `APPROVED` or `REJECTED`.
+
+```bash
+curl -X PATCH http://localhost:8080/api/onboarding/cases/1/risk-classification \
+  -H "Content-Type: application/json" \
+  -d '{"risk_level": "MEDIUM", "rationale": "Politically exposed connection", "officer_id": 2}'
+```
+
+```json
+{"message":"Risk classification updated successfully","case_id":1}
+```
+
+Missing/invalid fields, `400`:
+```json
+{"error":"Missing required fields: risk_level, rationale"}
+```
+
+---
+
+## Officers
+
+### `GET /api/officers`
+
+```bash
+curl http://localhost:8080/api/officers
+```
+
+```json
+[
+  {"officer_id":1,"full_name":"Alan Turing"},
+  {"officer_id":2,"full_name":"Grace Whitman"}
+]
+```
+
+---
+
+## Document Types
+
+### `GET /api/document-types`
+
+```bash
+curl http://localhost:8080/api/document-types
+```
+
+```json
+[
+  {"doc_type_id":1,"doc_type_name":"PASSPORT"},
+  {"doc_type_id":2,"doc_type_name":"UTILITY_BILL"}
+]
+```
+

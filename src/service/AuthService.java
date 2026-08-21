@@ -1,6 +1,8 @@
 package service;
 
 import java.sql.SQLException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import repository.AuthRepository;
 import repository.AuthRepository.Credential;
 import util.PasswordHasher;
@@ -9,6 +11,7 @@ import util.PasswordHasher;
  * Authenticates users against the client, compliance_officer and admin_officer tables.
  */
 public class AuthService {
+    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
     public static final String ROLE_CLIENT = "CLIENT";
     public static final String ROLE_COMPLIANCE_OFFICER = "COMPLIANCE_OFFICER";
@@ -44,14 +47,18 @@ public class AuthService {
      */
     public LoginResult login(String username, String password) throws SQLException {
         LoginResult result = tryRole(ROLE_CLIENT, authRepository.findClientByUsername(username), password);
-        if (result != null) {
-            return result;
+        if (result == null) {
+            result = tryRole(ROLE_COMPLIANCE_OFFICER, authRepository.findOfficerByUsername(username), password);
         }
-        result = tryRole(ROLE_COMPLIANCE_OFFICER, authRepository.findOfficerByUsername(username), password);
-        if (result != null) {
-            return result;
+        if (result == null) {
+            result = tryRole(ROLE_ADMIN_COMPLIANCE_OFFICER, authRepository.findAdminByUsername(username), password);
         }
-        return tryRole(ROLE_ADMIN_COMPLIANCE_OFFICER, authRepository.findAdminByUsername(username), password);
+        if (result == null) {
+            logger.warn("Login failed: username={} reason=no matching credentials", username);
+        } else {
+            logger.info("Login succeeded: username={} role={} entityId={}", username, result.role, result.entityId);
+        }
+        return result;
     }
 
     private LoginResult tryRole(String role, Credential credential, String password) {

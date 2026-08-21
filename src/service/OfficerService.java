@@ -1,12 +1,15 @@
 package service;
 
 import java.sql.SQLException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import repository.OfficerRepository;
 
 /**
  * Business logic for compliance officer lookups.
  */
 public class OfficerService {
+    private static final Logger logger = LoggerFactory.getLogger(OfficerService.class);
     private final OfficerRepository officerRepository;
 
     public OfficerService() {
@@ -24,7 +27,9 @@ public class OfficerService {
      * @throws SQLException when the query fails
      */
     public String listOfficers() throws SQLException {
-        return "[\n" + String.join(",\n", officerRepository.listOfficers()) + "\n]";
+        java.util.List<String> officers = officerRepository.listOfficers();
+        logger.debug("Listed compliance officers: count={}", officers.size());
+        return "[\n" + String.join(",\n", officers) + "\n]";
     }
 
     /**
@@ -35,6 +40,10 @@ public class OfficerService {
      * @throws SQLException when the query fails
      */
     public String getOfficerName(int officerId) throws SQLException {
-        return officerRepository.getOfficerName(officerId);
+        String name = officerRepository.getOfficerName(officerId);
+        if (name == null) {
+            logger.warn("Officer lookup failed: officerId={} reason=not found", officerId);
+        }
+        return name;
     }
 }

@@ -7,11 +7,15 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import repository.InvalidStateTransitionException;
+import repository.OnboardingRepository;
 import service.CaseService;
+import service.OnboardingService;
 import util.HttpResponseUtil;
 
 /**
@@ -21,6 +25,7 @@ public class CasesHandler implements HttpHandler {
     private static final Logger logger = LoggerFactory.getLogger(CasesHandler.class);
     private final CaseService caseService = new CaseService();
     private final service.OfficerService officerService = new service.OfficerService();
+    private final OnboardingService onboardingService = new OnboardingService();
 
     /**
      * Dispatches requests for /api/onboarding/cases routes.
@@ -46,6 +51,8 @@ public class CasesHandler implements HttpHandler {
                     } catch (NumberFormatException e) {
                         HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
+                } else if (parts.length == 5 && "open".equals(parts[4])) {
+                    handleOpenCase(exchange);
                 } else if (parts.length == 4 && "cases".equals(parts[3])) {
                     handleCreateOnboardingCase(exchange);
                 } else {
@@ -158,6 +165,75 @@ public class CasesHandler implements HttpHandler {
 
         int newCaseId = caseService.createOnboardingCase(clientId, productType, caseStatus);
         HttpResponseUtil.sendResponse(exchange, 201, "{\"message\":\"Onboarding case opened successfully\",\"case_id\":" + newCaseId + "}");
+    }
+
+    /**
+     * Handles opening a new onboarding case together with its client and address,
+     * any documents already provided, and an optional officer assignment.
+     *
+     * @param exchange current HTTP exchange
+     * @throws IOException when response writing fails
+     * @throws SQLException when persistence fails
+     */
+    private void handleOpenCase(HttpExchange exchange) throws IOException, SQLException {
+        String body = readBody(exchange);
+        String clientJson = extractObject(body, "client");
+        String addressJson = extractObject(body, "address");
+        String productType = extractString(body, "product_type");
+        String dueDate = extractString(body, "due_date");
+        Integer officerId = extractInt(body, "officer_id");
+        List<Integer> docTypeIds = extractIntArray(body, "document_type_ids");
+
+        if (clientJson == null || addressJson == null || isBlank(productType)) {
+            HttpResponseUtil.sendResponse(exchange, 400,
+                    "{\"error\":\"Missing required fields: client, address, product_type\"}");
+            return;
+        }
+
+        OnboardingRepository.ClientInput client = new OnboardingRepository.ClientInput();
+        client.fullName = extractString(clientJson, "full_name");
+        client.clientType = extractString(clientJson, "client_type");
+        client.nationality = extractString(clientJson, "nationality");
+        client.dateOfBirth = extractString(clientJson, "date_of_birth");
+        client.countryOfBirth = extractString(clientJson, "country_of_birth");
+        client.taxResidency = extractString(clientJson, "tax_residency");
+        client.occupation = extractString(clientJson, "occupation");
+        client.employer = extractString(clientJson, "employer");
+        client.mainSourceOfFunds = extractString(clientJson, "main_source_of_funds");
+        client.annualIncomeBand = extractString(clientJson, "annual_income_band");
+        client.status = "PENDING";
+        client.isActive = true;
+
+        if (isBlank(client.fullName) || isBlank(client.clientType) || isBlank(client.nationality)
+                || isBlank(client.dateOfBirth) || isBlank(client.countryOfBirth) || isBlank(client.taxResidency)) {
+            HttpResponseUtil.sendResponse(exchange, 400,
+                    "{\"error\":\"Missing required client fields: full_name, client_type, nationality, date_of_birth, country_of_birth, tax_residency\"}");
+            return;
+        }
+
+        OnboardingRepository.AddressInput address = new OnboardingRepository.AddressInput();
+        address.addressType = extractString(addressJson, "address_type");
+        address.line1 = extractString(addressJson, "line1");
+        address.line2 = extractString(addressJson, "line2");
+        address.city = extractString(addressJson, "city");
+        address.state = extractString(addressJson, "state");
+        address.postcode = extractString(addressJson, "postcode");
+        address.country = extractString(addressJson, "country");
+        address.isCurrent = "TRUE";
+        if (isBlank(address.addressType)) {
+            address.addressType = "REGISTERED";
+        }
+
+        if (isBlank(address.line1) || isBlank(address.city) || isBlank(address.country)) {
+            HttpResponseUtil.sendResponse(exchange, 400,
+                    "{\"error\":\"Missing required address fields: line1, city, country\"}");
+            return;
+        }
+
+        OnboardingRepository.OpenCaseResult result = onboardingService.openCase(client, address, productType,
+                dueDate, officerId, docTypeIds);
+        HttpResponseUtil.sendResponse(exchange, 201, "{\"message\":\"Case opened successfully\",\"case_id\":"
+                + result.caseId + ",\"client_id\":" + result.clientId + "}");
     }
 
     /**
@@ -396,5 +472,77 @@ public class CasesHandler implements HttpHandler {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /**
+     * Extracts a nested JSON object field as a raw JSON substring.
+     *
+     * @param json source JSON
+     * @param key field key
+     * @return the nested object's raw JSON text (including braces), or null when missing
+     */
+    private String extractObject(String json, String key) {
+        String searchKey = "\"" + key + "\"";
+        int keyIndex = json.indexOf(searchKey);
+        if (keyIndex == -1) {
+            return null;
+        }
+        int colonIndex = json.indexOf(':', keyIndex + searchKey.length());
+        if (colonIndex == -1) {
+            return null;
+        }
+        int braceStart = json.indexOf('{', colonIndex);
+        if (braceStart == -1) {
+            return null;
+        }
+        int depth = 0;
+        for (int i = braceStart; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return json.substring(braceStart, i + 1);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extracts a JSON array of integers.
+     *
+     * @param json source JSON
+     * @param key field key
+     * @return parsed list of integers, or an empty list when missing/empty
+     */
+    private List<Integer> extractIntArray(String json, String key) {
+        String searchKey = "\"" + key + "\"";
+        int keyIndex = json.indexOf(searchKey);
+        if (keyIndex == -1) {
+            return new ArrayList<>();
+        }
+        int colonIndex = json.indexOf(':', keyIndex + searchKey.length());
+        if (colonIndex == -1) {
+            return new ArrayList<>();
+        }
+        int bracketStart = json.indexOf('[', colonIndex);
+        int bracketEnd = bracketStart == -1 ? -1 : json.indexOf(']', bracketStart);
+        if (bracketStart == -1 || bracketEnd == -1) {
+            return new ArrayList<>();
+        }
+        String inner = json.substring(bracketStart + 1, bracketEnd).trim();
+        List<Integer> result = new ArrayList<>();
+        if (inner.isEmpty()) {
+            return result;
+        }
+        for (String part : inner.split(",")) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                result.add(Integer.valueOf(trimmed));
+            }
+        }
+        return result;
     }
 }

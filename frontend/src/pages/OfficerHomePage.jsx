@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/api';
+import CaseFilters, { matchesDueDateFilter, sortCasesByDueDate } from '../components/CaseFilters';
 
 const PENDING_STATUSES = ['AWAITING_DOCUMENTS', 'IN_REVIEW'];
 const CLOSED_STATUSES = ['APPROVED', 'REJECTED', 'CLOSED'];
@@ -29,6 +30,9 @@ export default function OfficerHomePage() {
   const [cases, setCases] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedStatuses, setSelectedStatuses] = useState([]);
+  const [dueDateFilter, setDueDateFilter] = useState('all');
+  const [dueDateSort, setDueDateSort] = useState('none');
 
   useEffect(() => {
     let cancelled = false;
@@ -51,9 +55,33 @@ export default function OfficerHomePage() {
   if (loading) return <div className="page">Loading your cases...</div>;
   if (error) return <div className="page error">Error: {error}</div>;
 
+  const toggleStatus = (status) => {
+    setSelectedStatuses((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+    );
+  };
+
+  const visibleCases = sortCasesByDueDate(
+    cases.filter(
+      (c) =>
+        (selectedStatuses.length === 0 || selectedStatuses.includes(c.case_status)) &&
+        matchesDueDateFilter(c.due_date, dueDateFilter)
+    ),
+    dueDateSort
+  );
+
   return (
     <div className="page">
       <h1>My Cases</h1>
+
+      <CaseFilters
+        selectedStatuses={selectedStatuses}
+        onToggleStatus={toggleStatus}
+        dueDateFilter={dueDateFilter}
+        onDueDateFilterChange={setDueDateFilter}
+        dueDateSort={dueDateSort}
+        onDueDateSortChange={setDueDateSort}
+      />
 
       {cases.length === 0 ? (
         <p>No cases are currently assigned to you.</p>
@@ -67,11 +95,18 @@ export default function OfficerHomePage() {
               <th>Status</th>
               <th>Due Date</th>
               <th>Case Opened</th>
+              <th>Due Date</th>
+              <th>Case Opened</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {cases.map((c) => (
+            {visibleCases.length === 0 && (
+              <tr>
+                <td colSpan={7}>No cases match the selected filters.</td>
+              </tr>
+            )}
+            {visibleCases.map((c) => (
               <tr key={c.case_id} className={statusRowClass(c.case_status)}>
                 <td>{c.case_id}</td>
                 <td className="client-name">{c.client_name}</td>
@@ -81,6 +116,8 @@ export default function OfficerHomePage() {
                     {c.case_status}
                   </span>
                 </td>
+                <td className={dueDateClass(c.due_date, c.case_status)}>{c.due_date || '—'}</td>
+                <td>{dateOnly(c.opened_date)}</td>
                 <td className={dueDateClass(c.due_date, c.case_status)}>{c.due_date || '—'}</td>
                 <td>{dateOnly(c.opened_date)}</td>
                 <td>
