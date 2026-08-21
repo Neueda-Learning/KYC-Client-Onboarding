@@ -9,6 +9,8 @@ import controller.CasesHandler;
 import controller.HealthHandler;
 import controller.OfficersHandler;
 import controller.OpenApiHandler;
+import controller.DocumentTypesHandler;
+
 
 /**
  * Lightweight HTTP API server for the KYC Client Onboarding system.
@@ -32,6 +34,7 @@ public class KycApiServer {
         server.createContext("/api/auth/login", new AuthHandler());
         server.createContext("/health", new HealthHandler());
         server.createContext("/openapi.yaml", new OpenApiHandler());
+        server.createContext("/api/document-types", new DocumentTypesHandler());
         server.setExecutor(null);
 
         new DocumentExpiryScheduledJob().start();

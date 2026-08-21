@@ -74,6 +74,13 @@ public class CasesHandler implements HttpHandler {
                     } catch (NumberFormatException e) {
                         HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID or document ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
                     }
+                } else if (parts.length == 6 && "risk-classification".equals(parts[5])) {
+                    try {
+                        int caseId = Integer.parseInt(parts[4]);
+                        handleUpdateRiskClassification(exchange, caseId);
+                    } catch (NumberFormatException e) {
+                        HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid case ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+                    }
                 } else {
                     HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid PATCH endpoint path\"}");
                 }
@@ -200,6 +207,33 @@ public class CasesHandler implements HttpHandler {
         } else {
             logger.warn("Case officer assignment failed: caseId={} reason=case not found", caseId);
             HttpResponseUtil.sendResponse(exchange, 404, "{\"error\":\"Case not found\"}");
+        }
+    }
+
+    /**
+     * Handles a risk classification update, recording a new classification entry.
+     *
+     * @param exchange current HTTP exchange
+     * @param caseId target case id
+     * @throws IOException when response writing fails
+     * @throws SQLException when persistence fails
+     */
+    private void handleUpdateRiskClassification(HttpExchange exchange, int caseId) throws IOException, SQLException {
+        String body = readBody(exchange);
+        String riskLevel = extractString(body, "risk_level");
+        String rationale = extractString(body, "rationale");
+        Integer officerId = extractInt(body, "officer_id");
+
+        if (isBlank(riskLevel) || isBlank(rationale)) {
+            HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Missing required fields: risk_level, rationale\"}");
+            return;
+        }
+
+        try {
+            caseService.updateRiskClassification(caseId, riskLevel, rationale, officerId);
+            HttpResponseUtil.sendResponse(exchange, 200, "{\"message\":\"Risk classification updated successfully\",\"case_id\":" + caseId + "}");
+        } catch (IllegalArgumentException e) {
+            HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"" + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
         }
     }
 

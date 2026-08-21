@@ -28,7 +28,8 @@ body {
   flex-direction: column;
 }
 
-h1, h2 {
+h1,
+h2 {
   color: var(--text-h);
   font-weight: 700;
 }
@@ -123,6 +124,20 @@ a {
   padding: 24px;
 }
 
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  /* vertically aligns the button and heading text */
+  margin-bottom: 1rem;
+  /* optional: creates breathing room before the card */
+}
+
+/* Ensure the heading doesn't add unwanted default top/bottom margins */
+.page-header h1 {
+  margin: 0;
+}
+
 .hint {
   font-size: 13px;
   color: #64748b;
@@ -168,7 +183,8 @@ table {
   border-collapse: collapse;
 }
 
-th, td {
+th,
+td {
   text-align: left;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
@@ -243,11 +259,80 @@ th {
   text-transform: capitalize;
 }
 
-.status-open { background: #dbeafe; color: #0a66c2; }
-.status-awaiting_documents { background: #fef9c3; color: #854d0e; }
-.status-in_review { background: #fef9c3; color: #854d0e; }
-.status-approved { background: #dcfce7; color: #166534; }
-.status-rejected { background: #fee2e2; color: #dc2626; }
+.status-open {
+  background: #dbeafe;
+  color: #0a66c2;
+}
+
+.status-awaiting_documents {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.status-in_review {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.status-approved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-rejected {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.status-low {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-medium {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.status-high {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.status-closed {
+  background: #f1f5f9;
+  color: #6b7280;
+}
+
+.document-modal {
+  max-width: 420px;
+}
+
+.mock-pdf-preview {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.mock-pdf-page {
+  width: 220px;
+  min-height: 280px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.mock-pdf-icon {
+  font-size: 48px;
+}
 
 .button-secondary {
   background: #fff;
@@ -330,11 +415,14 @@ label {
   margin-bottom: 14px;
 }
 
-input, select {
+input,
+select,
+textarea {
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 14px;
+  font-family: inherit;
 }
 
 button[type="submit"] {
@@ -349,8 +437,58 @@ button[type="submit"] {
   transition: opacity 0.15s;
 }
 
+/* Danger / Red Button */
+.button-danger {
+  width: 100%;
+  padding: 10px;
+  background-color: var(--danger);
+  /* uses #b91c1c from your root variables */
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 15px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.button-danger:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.button-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Dark Grey Text for Closed State */
+.case-closed-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4b5563;
+  /* Dark grey */
+}
+
 button[type="submit"]:hover {
   opacity: 0.92;
+}
+
+.missing-docs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.missing-doc-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.missing-doc-item:last-child {
+  border-bottom: none;
 }
 
 .login-page {
@@ -432,4 +570,3 @@ button[type="submit"]:hover {
   color: #94a3b8;
   margin-top: 16px;
 }
-
