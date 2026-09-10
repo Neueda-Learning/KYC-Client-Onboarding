@@ -66,6 +66,16 @@ public class ClientsHandler implements HttpHandler {
                 } else {
                     HttpResponseUtil.sendResponse(exchange, 404, "{\"error\":\"Invalid POST endpoint path\"}");
                 }
+            } else if ("PATCH".equalsIgnoreCase(method)) {
+                if (parts.length == 5 && "status".equals(parts[4])) {
+                    try {
+                        handleUpdateClientStatus(exchange, Integer.parseInt(parts[3]));
+                    } catch (NumberFormatException e) {
+                        HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid client ID: " + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+                    }
+                } else {
+                    HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Invalid PATCH endpoint path\"}");
+                }
             } else {
                 HttpResponseUtil.sendResponse(exchange, 405, "{\"error\":\"Method Not Allowed\"}");
             }
@@ -147,6 +157,36 @@ public class ClientsHandler implements HttpHandler {
         int newId = clientService.createClient(fullName, clientType, nationality, countryOfBirth, dateOfBirth,
                 taxResidency, status, isActive);
         HttpResponseUtil.sendResponse(exchange, 201, "{\"message\":\"Client created successfully\",\"client_id\":" + newId + "}");
+    }
+
+    /**
+     * Handles a client status update request.
+     *
+     * @param exchange current HTTP exchange
+     * @param clientId target client id
+     * @throws IOException when response writing fails
+     * @throws SQLException when persistence fails
+     */
+    private void handleUpdateClientStatus(HttpExchange exchange, int clientId) throws IOException, SQLException {
+        String body = readBody(exchange);
+        String status = extractString(body, "status");
+        if (isBlank(status)) {
+            HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"Missing required field: status\"}");
+            return;
+        }
+
+        try {
+            boolean updated = clientService.updateStatus(clientId, status);
+            if (updated) {
+                HttpResponseUtil.sendResponse(exchange, 200, "{\"message\":\"Client status updated successfully\",\"client_id\":" + clientId
+                        + ",\"status\":\"" + repository.DatabaseConnection.escape(status.toUpperCase()) + "\"}");
+            } else {
+                logger.warn("Client status update failed: clientId={} reason=client not found", clientId);
+                HttpResponseUtil.sendResponse(exchange, 404, "{\"error\":\"Client not found\"}");
+            }
+        } catch (IllegalArgumentException e) {
+            HttpResponseUtil.sendResponse(exchange, 400, "{\"error\":\"" + repository.DatabaseConnection.escape(e.getMessage()) + "\"}");
+        }
     }
 
     /**

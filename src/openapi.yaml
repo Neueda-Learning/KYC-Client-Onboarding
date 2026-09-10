@@ -125,6 +125,29 @@ paths:
         "200": { description: Client record }
         "404": { description: Client not found }
 
+  /api/clients/{id}/status:
+    patch:
+      tags: [Clients]
+      summary: Update a client's onboarding status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [PENDING, APPROVED, SUSPENDED, REJECTED] }
+      responses:
+        "200": { description: Client status updated }
+        "400": { description: Missing or invalid status }
+        "404": { description: Client not found }
+
   /api/clients/expiring-documents:
     get:
       tags: [Clients]

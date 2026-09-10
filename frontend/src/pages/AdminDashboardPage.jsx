@@ -3,6 +3,10 @@
 // ml_prediction).
 import { useEffect, useMemo, useState } from 'react';
 import { api, mlApi } from '../api/api';
+import { cachedFetch, invalidateCache } from '../api/cache';
+
+const DASHBOARD_CASES_CACHE_KEY = 'dashboard:cases';
+const DASHBOARD_CASES_CACHE_TTL_MS = 60 * 1000;
 
 const CASE_STATUS_COLORS = { OPEN: '#3b82f6', PENDING: '#f59e0b', CLOSED: '#6b7280' };
 const CLIENT_STATUS_COLORS = { PENDING: '#f59e0b', ACTIVE: '#22c55e', SUSPENDED: '#a855f7', REJECTED: '#ef4444' };
@@ -129,14 +133,13 @@ function CaseMetricCard({ title, description, data, error, emptyMessage }) {
   );
 }
 
-function CaseMetricsSection() {
+function CaseMetricsSection({ refreshToken }) {
   const [cases, setCases] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    api
-      .getCases()
+    cachedFetch(DASHBOARD_CASES_CACHE_KEY, () => api.getCases(), DASHBOARD_CASES_CACHE_TTL_MS)
       .then((data) => {
         if (!cancelled) setCases(Array.isArray(data) ? data : data?.cases || []);
       })
@@ -146,7 +149,7 @@ function CaseMetricsSection() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshToken]);
 
   const caseStatusData = useCountsByField(cases, 'case_status', CASE_STATUS_COLORS);
   const clientStatusData = useCountsByField(cases, 'client_status', CLIENT_STATUS_COLORS);
@@ -198,18 +201,30 @@ function CaseMetricsSection() {
 }
 
 export default function AdminDashboardPage() {
+  const [refreshToken, setRefreshToken] = useState(0);
+
+  const handleRefresh = () => {
+    invalidateCache(); // clears all cached plots/case data so the next fetch is fresh
+    setRefreshToken((t) => t + 1);
+  };
+
   return (
     <div className="page">
-      <h1>Dashboard</h1>
+      <div className="page-header">
+        <h1>Dashboard</h1>
+        <button className="link-button" onClick={handleRefresh}>
+          Refresh data
+        </button>
+      </div>
 
       <h2>Model performance & explainability</h2>
       <div className="dashboard-grid-stacked">
         {MODEL_PLOTS.map((plot) => (
-          <ModelPlotCard key={plot.title} {...plot} />
+          <ModelPlotCard key={`${plot.title}-${refreshToken}`} {...plot} />
         ))}
       </div>
 
-      <CaseMetricsSection />
+      <CaseMetricsSection refreshToken={refreshToken} />
     </div>
   );
 }

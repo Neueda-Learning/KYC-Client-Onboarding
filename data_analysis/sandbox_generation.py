@@ -304,7 +304,7 @@ def generate_dataset():
             "status": status,
             "is_active": status in ["APPROVED", "PENDING_REVIEW"],
             "username": f"user_{i}_{fake.user_name()[:6]}",
-            "password_hash": "pbkdf2_sha256$210000$ac1rG6uAi30eexRN6DPn2A==$fRT14v48H0So1gsLkeudf/DEnJOnT/NjcdaA5PCntsk=",
+            "password_hash": "pbkdf2_sha256$210000$+Zuau15k6cIQYfCWdMLwIw==$7v4A8RgF4rbi57jRvQ9jKmLWjaxtHpVCyJoOF95+rAU=",
             "is_pep": is_pep,
             "adverse_media_hits": adverse_media
         })

@@ -13,3 +13,4 @@ seaborn
 faker
 sqlalchemy
 pymysql
+requests

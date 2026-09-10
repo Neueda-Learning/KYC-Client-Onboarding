@@ -151,6 +151,31 @@ Missing fields:
 {"error":"Missing required fields: full_name, client_type, nationality, country_of_birth, date_of_birth, tax_residency, status, is_active"}
 ```
 
+### `PATCH /api/clients/{id}/status`
+
+Updates a client's onboarding status. Used by officers/admins from the case view to
+approve or reject a client on top of the case's own status.
+
+```bash
+curl -X PATCH http://localhost:8080/api/clients/11/status \
+  -H "Content-Type: application/json" \
+  -d '{"status": "APPROVED"}'
+```
+
+```json
+{"message":"Client status updated successfully","client_id":11,"status":"APPROVED"}
+```
+
+Invalid status, `400`:
+```json
+{"error":"Invalid client status: FOO"}
+```
+
+Not found, `404`:
+```json
+{"error":"Client not found"}
+```
+
 ---
 
 ## Onboarding Cases
@@ -446,6 +471,33 @@ curl -X POST http://localhost:8000/api/v1/predict-and-explain \
 ```json
 {"decision":"REJECTED","approval_probability":0.3421,
  "recommendations":[{"feature":"verified_docs_count","current_value":"1","suggested_value":"2"}]}
+```
+
+### `POST /api/v1/predict-and-explain-batch`
+
+Scores many cases in a single request via one vectorized `pipeline.predict` call, instead of one
+HTTP round-trip + model call per case. Use this instead of looping `/predict-and-explain` when
+scoring thousands of cases (e.g. the 9-10k row sandbox dataset) — a single-case-at-a-time loop
+over that many rows is dominated by per-request overhead and (if recommendations are enabled)
+DiCE counterfactual search. `recommendations` are generated per REJECTED case and are the
+expensive part, so `include_recommendations` defaults to `false`; leave it off for large batches
+and only enable it for smaller ones. For very large datasets, chunk client-side (e.g. 500-1000
+cases per request) to keep request/response payload size reasonable.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/predict-and-explain-batch \
+  -H "Content-Type: application/json" \
+  -d '{"cases": [
+        {"client_type":"INDIVIDUAL","nationality":"GB","jurisdiction_risk":"LOW","age":30,
+         "annual_income_band":"50-100K","main_source_of_funds":"Employment Income","is_pep":0,
+         "adverse_media_hits":0,"is_cross_border":0,"product_type":"STANDARD",
+         "total_docs_submitted":2,"verified_docs_count":1,"expired_docs_count":0,"has_unverified_docs":1}
+      ],
+      "include_recommendations": false}'
+```
+
+```json
+{"results":[{"decision":"REJECTED","approval_probability":0.3421,"recommendations":null}]}
 ```
 
 ### `POST /api/v1/explain/shap-plot`

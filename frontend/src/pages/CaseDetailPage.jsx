@@ -12,6 +12,13 @@ const NEXT_STATUS_OPTIONS = [
   'CLOSED',
 ];
 
+const CLIENT_STATUS_OPTIONS = [
+  'PENDING',
+  'APPROVED',
+  'SUSPENDED',
+  'REJECTED',
+];
+
 const RISK_LEVELS = ['LOW', 'MEDIUM', 'HIGH'];
 
 const RECOMMENDATION_LABELS = {
@@ -30,6 +37,7 @@ export default function CaseDetailPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [statusUpdateError, setStatusUpdateError] = useState(null);
+  const [clientStatusError, setClientStatusError] = useState(null);
 
   const [riskLevel, setRiskLevel] = useState('LOW');
   const [rationale, setRationale] = useState('');
@@ -97,6 +105,17 @@ export default function CaseDetailPage() {
       loadCase();
     } catch (err) {
       setStatusUpdateError(err.message);
+    }
+  };
+
+  const handleClientStatusChange = async (e) => {
+    const newStatus = e.target.value;
+    setClientStatusError(null);
+    try {
+      await api.updateClientStatus(caseData.client_id, newStatus);
+      loadCase();
+    } catch (err) {
+      setClientStatusError(err.message);
     }
   };
 
@@ -199,6 +218,18 @@ export default function CaseDetailPage() {
           </p>
         )}
         {statusUpdateError && <p className="error">{statusUpdateError}</p>}
+
+        <label>
+          Client status
+          <select value={caseData.client_status} onChange={handleClientStatusChange}>
+            {CLIENT_STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+        {clientStatusError && <p className="error">{clientStatusError}</p>}
       </section>
 
       <section className="card">

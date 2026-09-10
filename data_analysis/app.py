@@ -155,6 +155,18 @@ class PredictionResponse(BaseModel):
     recommendations: Optional[List[Recommendation]] = None
 
 
+class BatchPredictionRequest(BaseModel):
+    cases: List[CaseFeatures]
+    # DiCE recommendations are the expensive part (one counterfactual search
+    # per REJECTED case) - off by default so large batches (thousands of
+    # cases) stay fast. Enable only for smaller batches that need them.
+    include_recommendations: bool = False
+
+
+class BatchPredictionResponse(BaseModel):
+    results: List[PredictionResponse]
+
+
 def _encode(features: CaseFeatures) -> pd.DataFrame:
     row = features.model_dump() if hasattr(features, "model_dump") else features.dict()
     row["annual_income_band_encoded"] = INCOME_MAP.get(row.pop("annual_income_band") or "50-100K", 1)
@@ -254,6 +266,40 @@ def predict_and_explain(features: CaseFeatures):
         approval_probability=round(proba, 4),
         recommendations=recommendations,
     )
+
+
+@app.post("/api/v1/predict-and-explain-batch", response_model=BatchPredictionResponse)
+def predict_and_explain_batch(request: BatchPredictionRequest):
+    """Scores many cases in one call via a single vectorized pipeline.predict
+    (not one HTTP round-trip + model call per case), for bulk jobs like
+    scoring the full 9-10k row sandbox dataset. See docs/README for chunking
+    guidance - keep include_recommendations off for large batches."""
+    if not request.cases:
+        return BatchPredictionResponse(results=[])
+
+    try:
+        df_raw = pd.concat([_encode(c) for c in request.cases], ignore_index=True)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid input: {exc}")
+
+    preds = pipeline.predict(df_raw)
+    probas = pipeline.predict_proba(df_raw)[:, 1]
+
+    results = []
+    for i in range(len(df_raw)):
+        decision = "APPROVED" if int(preds[i]) == 1 else "REJECTED"
+        recommendations = None
+        if decision == "REJECTED" and request.include_recommendations:
+            recommendations = _generate_recommendations(df_raw.iloc[[i]])
+        results.append(PredictionResponse(
+            decision=decision,
+            approval_probability=round(float(probas[i]), 4),
+            recommendations=recommendations,
+        ))
+
+    logger.info(f"Batch prediction: {len(results)} cases scored, "
+                f"include_recommendations={request.include_recommendations}")
+    return BatchPredictionResponse(results=results)
 
 
 @app.post("/api/v1/explain/shap-plot")

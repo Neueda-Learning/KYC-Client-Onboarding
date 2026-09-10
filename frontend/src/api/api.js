@@ -1,4 +1,6 @@
 // Thin wrapper around the KYC relay server REST API.
+import { cachedFetch } from './cache';
+
 // Base URL can be overridden with VITE_API_BASE_URL at build time.
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 // FastAPI ML/XAI service (data_analysis/app.py), called directly from the
@@ -87,6 +89,11 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ case_status }),
     }),
+  updateClientStatus: (clientId, status) =>
+    request(`/api/clients/${clientId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
   verifyDocument: (caseId, docId) =>
     request(`/api/onboarding/cases/${caseId}/documents/${docId}/verify`, { method: 'PATCH' }),
   getOfficers: () => request('/api/officers'),
@@ -114,17 +121,28 @@ export const api = {
 };
 
 // Model diagnostic plots (base64 PNG data URLs) served by the FastAPI ML
-// service - used by AdminDashboardPage's "Model Performance" section.
+// service - used by AdminDashboardPage's "Model Performance" section. These
+// only change when the model is retrained, so cache them for a while instead
+// of re-generating/re-fetching all 6 plots every time the dashboard mounts.
+const PLOT_CACHE_TTL_MS = 10 * 60 * 1000;
+
 export const mlApi = {
   getFeatureImportancePlot: () =>
-    mlRequest('/api/v1/explain/feature-importance-plot').then((d) => d.feature_importance_plot),
+    cachedFetch('ml:feature-importance', () =>
+      mlRequest('/api/v1/explain/feature-importance-plot').then((d) => d.feature_importance_plot), PLOT_CACHE_TTL_MS),
   getConfusionMatrixPlot: () =>
-    mlRequest('/api/v1/eval/confusion-matrix-plot').then((d) => d.confusion_matrix_plot),
-  getRocCurvePlot: () => mlRequest('/api/v1/eval/roc-curve-plot').then((d) => d.roc_curve_plot),
+    cachedFetch('ml:confusion-matrix', () =>
+      mlRequest('/api/v1/eval/confusion-matrix-plot').then((d) => d.confusion_matrix_plot), PLOT_CACHE_TTL_MS),
+  getRocCurvePlot: () =>
+    cachedFetch('ml:roc-curve', () =>
+      mlRequest('/api/v1/eval/roc-curve-plot').then((d) => d.roc_curve_plot), PLOT_CACHE_TTL_MS),
   getApprovalRatePlot: () =>
-    mlRequest('/api/v1/eval/approval-rate-plot').then((d) => d.approval_rate_plot),
+    cachedFetch('ml:approval-rate', () =>
+      mlRequest('/api/v1/eval/approval-rate-plot').then((d) => d.approval_rate_plot), PLOT_CACHE_TTL_MS),
   getProbabilityDistributionPlot: () =>
-    mlRequest('/api/v1/eval/probability-distribution-plot').then((d) => d.probability_distribution_plot),
+    cachedFetch('ml:probability-distribution', () =>
+      mlRequest('/api/v1/eval/probability-distribution-plot').then((d) => d.probability_distribution_plot), PLOT_CACHE_TTL_MS),
   getTopRejectionFactorsPlot: () =>
-    mlRequest('/api/v1/eval/top-rejection-factors-plot').then((d) => d.top_rejection_factors_plot),
+    cachedFetch('ml:top-rejection-factors', () =>
+      mlRequest('/api/v1/eval/top-rejection-factors-plot').then((d) => d.top_rejection_factors_plot), PLOT_CACHE_TTL_MS),
 };
